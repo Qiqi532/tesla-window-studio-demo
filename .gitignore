@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.vite/
+.env
+.env.*
+!.env.example
+*.log
+*.mp4
+*.mov
+*.webm
