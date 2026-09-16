@@ -161,7 +161,13 @@ a { color: inherit; }
 .command-form input::placeholder { color: #7990a6; }
 .command-form button { flex: none; width: 37px; border: 0; border-left: 1px solid #40586f; background: #163049; color: #aed7f7; font-size: 19px; }
 .command-form button:hover { background: #28506d; }
-.voice-options { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 9px; color: #718aa0; font-size: 9.5px; }
+.voice-options { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 11px; margin-top: 9px; color: #718aa0; font-size: 9.5px; }
+.voice-mode { display: inline-flex; align-items: center; gap: 6px; color: #9bb7cc; }
+.voice-mode select { height: 25px; padding: 0 22px 0 7px; border: 1px solid #40586f; border-radius: 5px; background: #0b1725; color: #c9deed; font: inherit; }
+.voice-engine-status { color: #7898af; }
+.voice-link-button { padding: 0; border: 0; background: transparent; color: #84bde1; font: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.voice-link-button:hover:not(:disabled) { color: #c5e8ff; }
+.voice-link-button:disabled { color: #566c7c; cursor: default; text-decoration: none; }
 .speech-output { display: inline-flex; align-items: center; gap: 6px; color: #9bb7cc; cursor: pointer; white-space: nowrap; }
 .speech-output input { accent-color: #77bbdf; }
 .speech-output:has(input:disabled) { opacity: .55; cursor: default; }

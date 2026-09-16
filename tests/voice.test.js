@@ -52,6 +52,14 @@ function createRecognitionWindow() {
   }
 }
 
+const allowedMediaDevices = {
+  async getUserMedia() {
+    return { getTracks: () => [{ stop() {} }] }
+  },
+}
+
+const nextTask = () => new Promise((resolve) => setTimeout(resolve, 0))
+
 test('语音识别接口缺失时文本输入仍可用', () => {
   const oldWindow = globalThis.window
   globalThis.window = { localStorage: { getItem: () => null, setItem: () => {} } }
@@ -79,7 +87,7 @@ test('语音识别接口缺失时文本输入仍可用', () => {
   }
 })
 
-test('同一会话按最终文本去重，新会话可以再次执行', () => {
+test('同一会话按最终文本去重，新会话可以再次执行', async () => {
   const oldWindow = globalThis.window
   const browser = createRecognitionWindow()
   globalThis.window = browser.window
@@ -88,16 +96,22 @@ test('同一会话按最终文本去重，新会话可以再次执行', () => {
     const commands = []
     const control = createVoiceControl({
       ...nodes,
+      mediaDevices: allowedMediaDevices,
       execute: (text) => commands.push(text),
       feedback: () => {},
     })
     const result = { isFinal: true, 0: { transcript: '打开车窗' } }
     nodes.button.dispatchEvent(new Event('click'))
+    await nextTask()
     browser.RecognitionStub.instance.onresult({ resultIndex: 0, results: [result] })
     browser.RecognitionStub.instance.onresult({ resultIndex: 1, results: [result, result] })
     browser.RecognitionStub.instance.onend()
+    await nextTask()
     nodes.button.dispatchEvent(new Event('click'))
+    await nextTask()
     browser.RecognitionStub.instance.onresult({ resultIndex: 0, results: [result] })
+    browser.RecognitionStub.instance.onend()
+    await nextTask()
     assert.deepEqual(commands, ['打开车窗', '打开车窗'])
     control.dispose()
   } finally {
@@ -136,13 +150,13 @@ test('点击说话先获得麦克风权限并释放预检音轨', async () => {
   }
 })
 
-test('浏览器错误分别反馈并保持文本降级路径', () => {
+test('浏览器错误分别反馈并保持文本降级路径', async () => {
   const cases = [
     ['not-allowed', /麦克风权限被拒绝/, true],
     ['audio-capture', /没有可用的麦克风/, true],
-    ['no-speech', /没有听到指令/, false],
-    ['network', /语音识别服务暂不可用/, false],
-    ['service-not-allowed', /语音识别服务被浏览器禁用/, true],
+    ['no-speech', /没有听到清晰指令/, false],
+    ['network', /浏览器语音服务暂不可用/, false],
+    ['service-not-allowed', /浏览器语音服务暂不可用/, false],
   ]
 
   for (const [error, messagePattern, microphoneDisabled] of cases) {
@@ -154,10 +168,14 @@ test('浏览器错误分别反馈并保持文本降级路径', () => {
       const messages = []
       const control = createVoiceControl({
         ...nodes,
+        mediaDevices: allowedMediaDevices,
         execute: () => {},
         feedback: (message) => messages.push(message),
       })
+      nodes.button.dispatchEvent(new Event('click'))
+      await nextTask()
       browser.RecognitionStub.instance.onerror({ error })
+      await nextTask()
       assert.match(messages.at(-1), messagePattern)
       assert.equal(nodes.button.disabled, microphoneDisabled)
       nodes.input.value = '关闭车窗'

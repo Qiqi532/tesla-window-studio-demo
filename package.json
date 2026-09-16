@@ -8,10 +8,12 @@
     "build": "vite build --configLoader native",
     "preview": "vite preview --configLoader native",
     "verify:model": "node scripts/verify-model.mjs",
+    "verify:deploy": "node scripts/verify-static-deploy.mjs",
     "prebuild": "npm run verify:model",
     "test": "node --test --test-isolation=none tests/*.test.js"
   },
   "dependencies": {
+    "@huggingface/transformers": "3.8.1",
     "three": "0.186.0"
   },
   "devDependencies": {

@@ -111,9 +111,21 @@
         <section class="voice-panel" aria-label="语音与文字控车">
           <div class="voice-heading"><span class="voice-badge">VOICE COMMAND</span><span class="voice-example">车窗 · 车门 · 备箱 · 灯光 · 天气</span></div>
           <div class="voice-actions"><button class="mic-button" id="mic-button" type="button" aria-label="开始语音控车"><span class="mic-glyph">◉</span><span id="mic-label">点击说话</span></button><form id="command-form" class="command-form"><label for="command-input" class="sr-only">输入控车指令</label><input id="command-input" type="text" placeholder="输入：打开左前车门 / 切换雨天" autocomplete="off" /><button type="submit" aria-label="执行文本指令">→</button></form></div>
-          <div class="voice-options"><label class="speech-output"><input id="speech-output-toggle" type="checkbox" /> 中文播报</label><span>默认关闭 · 行驶控制请使用按钮</span></div>
+          <div class="voice-options">
+            <label class="voice-mode" for="voice-mode">识别
+              <select id="voice-mode" aria-label="语音识别模式">
+                <option value="auto">自动</option>
+                <option value="browser">浏览器</option>
+                <option value="local">本地</option>
+              </select>
+            </label>
+            <span id="voice-engine-status" class="voice-engine-status">自动选择</span>
+            <button id="local-model-enable" class="voice-link-button" type="button">启用本地识别</button>
+            <button id="local-model-clear" class="voice-link-button" type="button" hidden>清除模型</button>
+            <label class="speech-output"><input id="speech-output-toggle" type="checkbox" /> 中文播报</label>
+          </div>
           <p id="feedback" class="feedback" role="status" aria-live="polite">准备就绪，等待你的指令。</p>
-          <p class="voice-privacy">不保存录音或识别历史；浏览器语音识别可能使用厂商在线服务，文字输入始终可用。</p>
+          <p class="voice-privacy">不保存录音或识别历史；浏览器模式可能使用厂商在线服务，本地模式仅在设备上处理。文字输入始终可用，行驶控制请使用按钮。</p>
         </section>
 
         <div class="model-credit">MODEL CREDIT <span>·</span> Ameer Studio <span>·</span> <a href="https://sketchfab.com/3d-models/tesla-2018-model-3-5ef9b845aaf44203b6d04e2c677e444f" target="_blank" rel="noopener noreferrer">Sketchfab 原模型 ↗</a> <span>·</span> <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0 ↗</a> <span>·</span> <a id="local-license" href="#" target="_blank" rel="noopener noreferrer">车模授权 ↗</a> <span>·</span> <a id="environment-license" href="#" target="_blank" rel="noopener noreferrer">环境素材 CC0 ↗</a></div>

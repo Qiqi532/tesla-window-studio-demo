@@ -15,7 +15,7 @@ npm run dev
 
 拖动旋转、滚轮缩放；点击侧窗或右侧按钮控制单窗。中文语音与文字指令统一支持车窗、车门、前后备箱、大灯/雾灯/尾灯和天气，例如“关闭驾驶位车窗”“打开左前车门”“开启大灯”“切换雨天”。未指定位置的“打开车门”和“打开备箱”会要求补充位置；天气指令会自动进入道路场景。档位和速度仍只使用页面按钮。
 
-文字输入始终可用。浏览器不支持语音、麦克风权限被拒绝、没有麦克风、未听到语音或识别服务不可用时，页面会显示分类提示。可选中文播报默认关闭，开启状态仅保存在浏览器本地；页面不保存录音或识别历史，浏览器自身的语音识别可能使用厂商在线服务。
+文字输入始终可用。语音支持“自动 / 浏览器 / 本地”三种模式：自动模式优先探测浏览器本机中文语言包，其次使用浏览器语音服务；服务不可用时可由用户确认后按需加载浏览器端 Whisper tiny。识别候选会按标准命令去重，不同候选映射到不同操作时不会猜测执行。可选中文播报默认关闭，开启状态仅保存在浏览器本地；页面不保存录音、转写或识别历史。
 
 ## 车辆控制
 
@@ -36,18 +36,30 @@ npm run dev
 npm test
 npm run verify:model
 npm run build
+npm run verify:deploy
 npm run preview
 ```
 
 `npm run build` 会通过 `prebuild` 自动先执行模型检查。模型检查直接读取 GLB，校验车辆控制器所需的全部节点与材质，并在前后轮轴的 z 轴位置不符合预期时失败。
 
-Vercel：构建命令 `npm run build`，输出目录 `dist`。GitHub Pages：在仓库设置中选择 GitHub Actions 作为 Pages 来源；推送到 `main` 后使用仓库内工作流部署。Vite 使用相对 `base`，GLB 与授权说明随 `dist/assets` 发布。部署站点需使用 HTTPS，浏览器原生语音识别也可能受浏览器、麦克风权限和识别服务可用性影响；文字输入始终可用。
+`npm run verify:deploy` 会检查 `dist` 中每个文件是否满足 Cloudflare Pages 的 25 MiB 单文件限制。Vite 使用相对 `base`，GLB、授权说明、Transformers.js Worker 和 ONNX Runtime WASM 均随 Pages 静态产物发布。
+
+当前推荐使用 Cloudflare Pages Direct Upload，不依赖 GitHub：
+
+```powershell
+$env:VITE_ASR_MODEL_BASE_URL = 'https://models.example.com/asr/'
+npm run build
+npm run verify:deploy
+npx wrangler@4 pages deploy dist --project-name <项目名>
+```
+
+本地 Whisper q8 权重约 45.5 MB，其中解码器超过 Pages 单文件限制，因此使用 R2 自定义域名托管。正式下载前必须确认 `docs/assets/whisper-tiny-q8-download-manifest.md`；当前仓库不会自动下载模型。R2 CORS 示例位于 `cloudflare/r2-cors.example.json`，示例域名必须替换后才可应用。部署站点需使用 HTTPS，浏览器原生语音仍受浏览器和识别服务可用性影响；文字输入始终可用。
 
 ## 模型授权
 
 Tesla 2018 Model 3 车模由 [Ameer Studio](https://sketchfab.com/uchiha.321abc) 创作，来源为 [Sketchfab 原模型](https://sketchfab.com/3d-models/tesla-2018-model-3-5ef9b845aaf44203b6d04e2c677e444f)，采用 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 许可。原项目提供的授权说明保存在 `public/assets/TESLA-LICENSE.md`，页面一角也持续显示署名。本 Demo 没有将车模重新授权为 MIT。
 
-Sunny Country Road、Fouriesburg Mountain Cloudy 和 Clean Asphalt 来自 [Poly Haven](https://polyhaven.com/)，采用 CC0。精确下载文件、字节数与校验值记录在 `public/assets/licenses/ASSET-LICENSES.md`。运行时所有模型、HDR 和纹理都从本地静态资源路径加载。
+Sunny Country Road、Fouriesburg Mountain Cloudy 和 Clean Asphalt 来自 [Poly Haven](https://polyhaven.com/)，采用 CC0。精确下载文件、字节数与校验值记录在 `public/assets/licenses/ASSET-LICENSES.md`。车辆模型、HDR 和纹理从 Pages 静态路径加载；可选的 Whisper tiny 模型采用 Apache-2.0，并仅从项目配置的 R2 静态域名按需加载。
 
 ## 录屏建议
 

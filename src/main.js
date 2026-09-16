@@ -165,6 +165,10 @@ async function start() {
       form: byId('command-form'),
       input: byId('command-input'),
       speechToggle: byId('speech-output-toggle'),
+      modeSelect: byId('voice-mode'),
+      modelButton: byId('local-model-enable'),
+      modelClearButton: byId('local-model-clear'),
+      engineStatus: byId('voice-engine-status'),
       execute: (text) => commandDispatcher.execute(text),
       feedback,
     })
