@@ -1,12 +1,15 @@
 import './style.css'
+import * as THREE from 'three'
 import { createStudio } from './scene.js'
 import { loadVehicle } from './vehicle.js'
-import { createWindowController, WINDOW_LABELS } from './windows.js'
+import { createWindowController } from './windows.js'
+import { createVehicleController } from './vehicleController.js'
 import { createVoiceControl } from './voice.js'
 import { parseCommand } from './parseCommand.js'
 import { createCameraRig } from './cameraRig.js'
 import { createEnvironmentController } from './environment.js'
-import { createEnvironmentUi } from './ui.js'
+import { createEnvironmentUi, createVehicleUi } from './ui.js'
+import { WINDOW_IDS, WINDOW_LABELS } from './vehicleParts.js'
 
 const byId = (id) => document.getElementById(id)
 const feedbackElement = byId('feedback')
@@ -32,60 +35,118 @@ const environment = createEnvironmentController({
 })
 const environmentUi = createEnvironmentUi({ environment, cameraRig, feedback })
 let windowController = null
+let vehicleController = null
+let vehicleUi = null
 let voiceControl = null
 
 studio.setFrameHandler((delta) => {
   cameraRig.update(delta)
   environment.update(delta)
-  windowController?.update(delta)
+  if (!vehicleController) return
+  vehicleController.update(delta)
+  // The looped road and both axles share one visual speed.
+  environment.setRoadSpeed(vehicleController.getState().roadSpeed)
 })
 
-function makeControls(controller) {
-  const list = byId('window-list')
-  for (const [id, label] of Object.entries(WINDOW_LABELS)) {
-    const button = document.createElement('button')
-    button.type = 'button'
-    button.className = 'window-row'
-    button.dataset.window = id
-    button.setAttribute('aria-pressed', 'false')
-    button.innerHTML = `<span class="window-row-index">${id}</span><span class="window-row-name">${label}</span><span class="window-row-status">已关闭</span><span class="window-switch"><span></span></span>`
-    button.addEventListener('click', () => {
-      const open = !controller.getState()[id].target
-      controller.setWindow(id, open)
-      feedback(`${label}已${open ? '打开' : '关闭'}。`)
-    })
-    list.append(button)
-  }
-
-  controller.subscribe((state) => {
-    const openCount = Object.values(state).filter(({ target }) => target === 1).length
-    for (const [id, entry] of Object.entries(state)) {
-      const button = list.querySelector(`[data-window="${id}"]`)
-      button.classList.toggle('is-open', entry.target === 1)
-      button.setAttribute('aria-pressed', String(entry.target === 1))
-      button.querySelector('.window-row-status').textContent = entry.target === 1 ? '已打开' : '已关闭'
-    }
-    byId('window-summary').textContent = openCount === 0
-      ? '全部车窗已关闭'
-      : openCount === 4 ? '全部车窗已打开' : `${openCount} 扇车窗已打开`
-  })
-}
-
+/**
+ * Voice and text input stay on the same standard command object as the panel buttons
+ * and the model clicks. Voice coverage is extended to the other parts in a later stage.
+ */
 function executeCommand(text, controller) {
   const action = parseCommand(text)
   if (!action) {
     feedback(`未理解“${text}”。试试“打开车窗”或“关闭驾驶位车窗”。`)
     return
   }
-  const changed = action.targets.length === 4
-    ? controller.setAllWindows(action.open)
-    : action.targets.reduce((didChange, id) => controller.setWindow(id, action.open) || didChange, false)
-  const subject = action.targets.length === 4
+  const result = controller.dispatch({
+    type: 'set-window',
+    targets: action.targets,
+    value: action.open ? 1 : 0,
+  })
+  const subject = action.targets.length === WINDOW_IDS.length
     ? '全部车窗'
     : action.targets.map((id) => WINDOW_LABELS[id]).join('、')
-  feedback(changed
+  feedback(result.changed.length
     ? `已执行“${text}”：${subject}已${action.open ? '打开' : '关闭'}。`
     : `${subject}已经${action.open ? '打开' : '关闭'}。`)
+}
+
+/**
+ * Development-only inspection hook. It reports the real node rotations, material
+ * colours and part hit boxes, so the browser verification pass can assert on what is
+ * actually rendered instead of only on the panel text.
+ */
+function installAuditHook(vehicle, controller) {
+  if (!import.meta.env.DEV) return
+
+  let trimColor = null
+  vehicle.vehicle.traverse((node) => {
+    if (trimColor || !node.isMesh) return
+    const materials = Array.isArray(node.material) ? node.material : [node.material]
+    const trim = materials.find((material) => material?.name === 'movsteer_1.0.1')
+    if (trim) trimColor = `#${trim.color.getHexString()}`
+  })
+
+  const round = (value) => Number(value.toFixed(4))
+  const project = (object) => {
+    const rect = studio.renderer.domElement.getBoundingClientRect()
+    const point = new THREE.Box3().setFromObject(object).getCenter(new THREE.Vector3()).project(studio.camera)
+    return {
+      x: Math.round(rect.left + ((point.x + 1) / 2) * rect.width),
+      y: Math.round(rect.top + ((1 - point.y) / 2) * rect.height),
+    }
+  }
+
+  globalThis.__vehicleAudit = () => {
+    const state = controller.getState()
+    return {
+      control: {
+        gear: state.gear,
+        speed: round(state.speed),
+        targetSpeed: state.targetSpeed,
+        driving: state.driving,
+        opened: state.opened,
+        openParts: state.openParts,
+        switches: state.switches,
+        illumination: state.illumination,
+        paint: state.paint,
+        wheelStyle: state.wheelStyle,
+        roadSpeed: round(state.roadSpeed),
+        environmentRoadSpeed: round(environment.getRoadSpeed()),
+        roadOffset: environment.getRenderInfo().roadOffset,
+        roadOffsets: environment.getRenderInfo().roadOffsets,
+      },
+      windows: state.windows,
+      doors: Object.fromEntries(Object.entries(vehicle.doors).map(([id, part]) => [id, round(part.node.rotation[part.axis])])),
+      trunks: Object.fromEntries(Object.entries(vehicle.trunks).map(([id, part]) => [id, round(part.node.rotation[part.axis])])),
+      wheels: Object.fromEntries(Object.entries(vehicle.axles).map(([id, axle]) => [id, round(axle.node.rotation.x)])),
+      materials: {
+        paint: `#${vehicle.materials.paint[0].color.getHexString()}`,
+        paintCount: vehicle.materials.paint.length,
+        rim: `#${vehicle.materials.rims[0].color.getHexString()}`,
+        rimCount: vehicle.materials.rims.length,
+        trimColor,
+        headlightEmissive: round(vehicle.materials.lights.headlight[0].emissiveIntensity),
+        fogEmissive: round(vehicle.materials.lights.fog[0].emissiveIntensity),
+        tailEmissive: round(vehicle.materials.lights.tail[0].emissiveIntensity),
+        brakeEmissive: round(vehicle.materials.lights.brake[0].emissiveIntensity),
+        reverseEmissive: round(vehicle.materials.lights.reverse[0].emissiveIntensity),
+        interiorEmissive: round(vehicle.materials.lights.interior[0].emissiveIntensity),
+        indicatorLeftEmissive: round(vehicle.materials.lights.indicatorLeft[0].emissiveIntensity),
+        indicatorRightEmissive: round(vehicle.materials.lights.indicatorRight[0].emissiveIntensity),
+      },
+      loadingHidden: cover.classList.contains('is-hidden'),
+    }
+  }
+
+  // Projection walks the model, so it is kept out of the polling path.
+  globalThis.__vehiclePoints = () => ({
+    partPoints: Object.fromEntries(controller.getHitTargets().map((target) => [
+      `${target.userData.partGroup}:${target.userData.partId}`,
+      project(target),
+    ])),
+    windowPoints: Object.fromEntries(Object.entries(vehicle.windows).map(([id, node]) => [id, project(node)])),
+  })
 }
 
 async function start() {
@@ -96,6 +157,8 @@ async function start() {
     })
     studio.scene.add(vehicle.root)
     vehicle.root.updateMatrixWorld(true)
+
+    // The window controller still owns the glass slide motion and the window picking.
     windowController = createWindowController({
       scene: studio.scene,
       camera: studio.camera,
@@ -104,16 +167,31 @@ async function start() {
       feedback,
     })
     windowController.update(0)
-    makeControls(windowController)
+
+    // The vehicle controller is created afterwards so its door/lid picking and hover
+    // cursor take precedence where a door and its glass overlap on screen.
+    vehicleController = createVehicleController({
+      vehicle,
+      scene: studio.scene,
+      camera: studio.camera,
+      canvas: studio.renderer.domElement,
+      windowController,
+      feedback,
+    })
+    vehicleController.update(0)
+
+    vehicleUi = createVehicleUi({ vehicle: vehicleController, feedback })
     voiceControl = createVoiceControl({
       button: byId('mic-button'),
       label: byId('mic-label'),
       form: byId('command-form'),
       input: byId('command-input'),
-      execute: (text) => executeCommand(text, windowController),
+      execute: (text) => executeCommand(text, vehicleController),
       feedback,
     })
     cover.classList.add('is-hidden')
+    feedback('车辆控制已就绪：点击车身部件，或使用右侧面板与语音指令。')
+    installAuditHook(vehicle, vehicleController)
   } catch (error) {
     byId('loading-title').textContent = '车模加载失败'
     byId('loading-detail').textContent = error?.message || '请检查模型文件后刷新页面。'
@@ -126,6 +204,8 @@ start()
 
 window.addEventListener('beforeunload', () => {
   voiceControl?.dispose()
+  vehicleUi?.dispose()
+  vehicleController?.dispose()
   windowController?.dispose()
   environmentUi.dispose()
   cameraRig.dispose()
