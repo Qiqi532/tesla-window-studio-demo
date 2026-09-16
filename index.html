@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#070b12" />
+    <meta name="description" content="Tesla Model 3 三维车窗控制演示" />
+    <title>Model 3 · Window Studio</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark">◈</span><span>WINDOW <b>STUDIO</b></span></div>
+        <div class="topbar-right"><span class="live-dot"></span> LIVE 3D DEMO <span class="topbar-separator"></span> 2026</div>
+      </header>
+
+      <main class="studio">
+        <div class="stage" id="stage" aria-label="可旋转缩放的 Tesla Model 3 三维车模"></div>
+        <div class="stage-noise" aria-hidden="true"></div>
+        <div class="stage-topline"><span>INTERACTIVE VEHICLE / 001</span><span>TESLA MODEL 3 · 2018</span></div>
+
+        <section class="hero-copy" aria-label="演示介绍">
+          <p class="eyebrow"><span class="eyebrow-line"></span> VEHICLE EXPERIENCE</p>
+          <h1>以声音，<br /><em>驱动车窗。</em></h1>
+          <p class="hero-description">拖动探索车身，点击侧窗控制升降。<br />一句口令，四扇车窗即刻响应。</p>
+          <div class="interaction-hint"><span class="hint-icon">↔</span> 拖动旋转 <span class="hint-divider"></span><span class="hint-icon">⊕</span> 滚轮缩放 <span class="hint-divider"></span><span class="hint-icon">◎</span> 点击车窗</div>
+        </section>
+
+        <div class="loading-cover" id="loading-cover" role="status" aria-live="polite">
+          <div class="loading-spinner"></div>
+          <strong id="loading-title">正在准备三维车模</strong>
+          <span id="loading-detail">正在读取本地模型资产…</span>
+          <div class="loading-track"><div id="loading-progress"></div></div>
+        </div>
+
+        <aside class="control-panel" aria-label="车窗控制面板">
+          <div class="panel-heading"><div><p class="panel-kicker">CONTROL DECK / 01</p><h2>车窗控制</h2></div><span class="panel-symbol">✳</span></div>
+          <p class="panel-intro">点击车窗或按钮，控制四扇侧窗。</p>
+          <div class="window-list" id="window-list"></div>
+          <div class="panel-footer"><span class="panel-footer-dot"></span><span id="window-summary">全部车窗已关闭</span><span>04 / 04</span></div>
+        </aside>
+
+        <section class="voice-panel" aria-label="语音与文字控车">
+          <div class="voice-heading"><span class="voice-badge">VOICE COMMAND</span><span class="voice-example">试试说“打开车窗”</span></div>
+          <div class="voice-actions"><button class="mic-button" id="mic-button" type="button" aria-label="开始语音控车"><span class="mic-glyph">◉</span><span id="mic-label">点击说话</span></button><form id="command-form" class="command-form"><label for="command-input" class="sr-only">输入控车指令</label><input id="command-input" type="text" placeholder="或输入：关闭车窗 / 打开驾驶位车窗" autocomplete="off" /><button type="submit" aria-label="执行文本指令">→</button></form></div>
+          <p id="feedback" class="feedback" role="status" aria-live="polite">准备就绪，等待你的指令。</p>
+        </section>
+
+        <div class="model-credit">MODEL CREDIT <span>·</span> Ameer Studio <span>·</span> <a href="https://sketchfab.com/3d-models/tesla-2018-model-3-5ef9b845aaf44203b6d04e2c677e444f" target="_blank" rel="noopener noreferrer">Sketchfab 原模型 ↗</a> <span>·</span> <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0 ↗</a> <span>·</span> <a id="local-license" href="#" target="_blank" rel="noopener noreferrer">授权说明 ↗</a></div>
+      </main>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

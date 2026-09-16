@@ -8,3 +8,6 @@ dist/
 *.mp4
 *.mov
 *.webm
+
+# 外部参考仓库，不入库；选定模型会复制到 public/models
+_reference/
