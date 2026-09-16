@@ -52,9 +52,9 @@
 
         <section class="hero-copy" aria-label="演示介绍">
           <p class="eyebrow"><span class="eyebrow-line"></span> VEHICLE EXPERIENCE</p>
-          <h1>以声音，<br /><em>驱动车窗。</em></h1>
-          <p class="hero-description">在影棚与循环道路之间切换，探索晴雨反射。<br />拖动车身、选择镜头，或用声音控制四扇车窗。</p>
-          <div class="interaction-hint"><span class="hint-icon">↔</span> 拖动旋转 <span class="hint-divider"></span><span class="hint-icon">⊕</span> 滚轮缩放 <span class="hint-divider"></span><span class="hint-icon">◎</span> 点击车窗</div>
+          <h1>以声音与指尖，<br /><em>驱动整车。</em></h1>
+          <p class="hero-description">在影棚与循环道路之间切换，探索晴雨反射。<br />拖动车身、选择镜头，或用声音控制车窗、车门、灯光与档位。</p>
+          <div class="interaction-hint"><span class="hint-icon">↔</span> 拖动旋转 <span class="hint-divider"></span><span class="hint-icon">⊕</span> 滚轮缩放 <span class="hint-divider"></span><span class="hint-icon">◎</span> 点击车窗、车门与备箱</div>
         </section>
 
         <div class="loading-cover" id="loading-cover" role="status" aria-live="polite">
@@ -64,11 +64,49 @@
           <div class="loading-track"><div id="loading-progress"></div></div>
         </div>
 
-        <aside class="control-panel" aria-label="车窗控制面板">
-          <div class="panel-heading"><div><p class="panel-kicker">CONTROL DECK / 01</p><h2>车窗控制</h2></div><span class="panel-symbol">✳</span></div>
-          <p class="panel-intro">点击车窗或按钮，控制四扇侧窗。</p>
-          <div class="window-list" id="window-list"></div>
-          <div class="panel-footer"><span class="panel-footer-dot"></span><span id="window-summary">全部车窗已关闭</span><span>04 / 04</span></div>
+        <aside class="control-panel" aria-label="车辆控制面板">
+          <div class="panel-heading"><div><p class="panel-kicker">CONTROL DECK / 01</p><h2>车辆控制</h2></div><span class="panel-symbol">✳</span></div>
+          <p class="panel-intro">点击车身部件或下方按钮，统一控制车窗、车门、备箱、灯光、档位与外观。</p>
+
+          <div class="panel-body" id="panel-body">
+            <section class="panel-section">
+              <div class="section-heading"><h3>车窗</h3><span class="section-note" id="window-summary">全部车窗已关闭</span></div>
+              <div class="window-list" id="window-list"></div>
+            </section>
+
+            <section class="panel-section">
+              <div class="section-heading"><h3>车门与备箱</h3><span class="section-note" id="hinge-summary">全部关闭</span></div>
+              <div class="chip-grid" id="hinge-list"></div>
+            </section>
+
+            <section class="panel-section">
+              <div class="section-heading"><h3>灯光</h3><span class="section-note" id="light-summary">灯光已关闭</span></div>
+              <div class="chip-grid" id="light-list"></div>
+            </section>
+
+            <section class="panel-section">
+              <div class="section-heading"><h3>档位与速度</h3><span class="section-note" id="gear-summary">P 档 · 静止</span></div>
+              <div class="gear-row" id="gear-row" role="group" aria-label="档位"></div>
+              <label class="speed-row" for="speed-range">
+                <span class="speed-label">视觉速度</span>
+                <input id="speed-range" type="range" min="0" max="80" step="5" value="30" />
+                <output id="speed-value" for="speed-range">0 km/h</output>
+              </label>
+              <p class="interlock-note" id="interlock-note" role="status" aria-live="polite"></p>
+            </section>
+
+            <section class="panel-section">
+              <div class="section-heading"><h3>车漆</h3><span class="section-note" id="paint-summary">曜石黑</span></div>
+              <div class="swatch-grid" id="paint-list"></div>
+            </section>
+
+            <section class="panel-section">
+              <div class="section-heading"><h3>轮毂</h3><span class="section-note" id="wheel-summary">涡流 21"</span></div>
+              <div class="swatch-grid" id="wheel-list"></div>
+            </section>
+
+            <p class="panel-disclaimer">模型只提供前后轮轴整体滚动，没有左右轮独立转向、悬挂、充电口或雨刷节点。视觉速度用于展示道路与轮轴联动，不是真实车辆物理模拟。</p>
+          </div>
         </aside>
 
         <section class="voice-panel" aria-label="语音与文字控车">

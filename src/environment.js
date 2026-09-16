@@ -5,7 +5,6 @@ import { createWeatherController } from './weather.js'
 
 const MODES = new Set(['studio', 'road'])
 const WEATHER_TYPES = new Set(['sunny', 'cloudy', 'rain'])
-const ROAD_SPEED = 5.4
 const ROAD_SEGMENT_LENGTH = 40
 
 export function createEnvironmentState() {
@@ -223,6 +222,7 @@ export function createEnvironmentController({
   let assets = null
   let loadPromise = null
   let disposed = false
+  let roadSpeed = 0
 
   const qualityScales = { high: 1, medium: 0.82, low: 0.66 }
   const weatherController = createWeatherController({
@@ -352,12 +352,28 @@ export function createEnvironmentController({
       state.setEquipmentVisible(visible)
       studio.equipment.visible = state.getState().mode === 'studio' && Boolean(visible)
     },
+    /**
+     * Visual speed of the looped road in scene units per second, along the car's
+     * forward axis. The vehicle controller feeds its own signed speed in here, so the
+     * road surface, the lane markings and both wheel axles advance together — and turn
+     * around together in reverse. Zero keeps the road still while parked.
+     */
+    setRoadSpeed(value) {
+      roadSpeed = Number.isFinite(value) ? value : 0
+    },
+    getRoadSpeed() {
+      return roadSpeed
+    },
     update(delta) {
       weatherController.update(delta)
-      if (!road?.root.visible) return
+      if (!road?.root.visible || roadSpeed === 0) return
       for (const segment of road.roadSegments) {
-        segment.position.z += ROAD_SPEED * delta
-        if (segment.position.z > ROAD_SEGMENT_LENGTH * 1.5) segment.position.z -= ROAD_SEGMENT_LENGTH * 3
+        // The car's nose points along +Z in scene space, so driving forward makes the
+        // ground flow the other way. Reversing flips the sign, so the wrap has to work
+        // in both directions.
+        segment.position.z -= roadSpeed * delta
+        if (segment.position.z < -ROAD_SEGMENT_LENGTH * 1.5) segment.position.z += ROAD_SEGMENT_LENGTH * 3
+        else if (segment.position.z > ROAD_SEGMENT_LENGTH * 1.5) segment.position.z -= ROAD_SEGMENT_LENGTH * 3
       }
     },
     getRenderInfo() {
@@ -366,6 +382,8 @@ export function createEnvironmentController({
         textures: renderer.info.memory.textures,
         calls: renderer.info.render.calls,
         triangles: renderer.info.render.triangles,
+        roadOffset: road ? Number(road.roadSegments[0].position.z.toFixed(4)) : null,
+        roadOffsets: road ? road.roadSegments.map((segment) => Number(segment.position.z.toFixed(4))) : null,
       }
     },
     dispose() {
