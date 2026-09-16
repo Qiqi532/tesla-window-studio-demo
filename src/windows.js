@@ -1,13 +1,8 @@
 import * as THREE from 'three'
+import { WINDOW_IDS, WINDOW_LABELS } from './vehicleParts.js'
 
-export const WINDOW_LABELS = {
-  FL: '驾驶位 · 左前',
-  FR: '副驾驶 · 右前',
-  RL: '左后车窗',
-  RR: '右后车窗',
-}
-
-const WINDOW_IDS = Object.keys(WINDOW_LABELS)
+// Re-exported so window labels keep a single definition in vehicleParts.js.
+export { WINDOW_IDS, WINDOW_LABELS }
 
 export function createWindowState() {
   const entries = Object.fromEntries(WINDOW_IDS.map((id) => [id, { current: 0, target: 0 }]))

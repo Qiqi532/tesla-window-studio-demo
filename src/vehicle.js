@@ -1,23 +1,25 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
-
-const WINDOW_NAMES = {
-  FL: 'door_lf_glass.0_0',
-  FR: 'door_rf_glass.0_0',
-  RL: 'door_lr_glass.0_0',
-  RR: 'door_rr_glass.0_0',
-}
-
-function normalizedName(name) {
-  return name.replace(/[^a-z0-9_-]/gi, '').toLowerCase()
-}
+import {
+  AXLE_PARTS,
+  DOOR_PARTS,
+  LIGHT_CONES,
+  LIGHT_MATERIALS,
+  PAINT_MATERIAL,
+  TRUNK_PARTS,
+  VEHICLE_MODEL_PATH,
+  WINDOW_NODES,
+  normalizePartName,
+} from './vehicleParts.js'
+import { cloneMutableMaterials, collectMutableMaterialNames } from './vehicleMaterials.js'
 
 function findPart(root, name) {
   const exact = root.getObjectByName(name)
   if (exact) return exact
+  const target = normalizePartName(name)
   let found = null
   root.traverse((node) => {
-    if (!found && normalizedName(node.name) === normalizedName(name)) found = node
+    if (!found && normalizePartName(node.name) === target) found = node
   })
   return found
 }
@@ -32,9 +34,58 @@ export async function loadVehicle(onProgress = () => {}) {
   })
 
   const vehicle = gltf.scene
-  const windows = Object.fromEntries(Object.entries(WINDOW_NAMES).map(([id, name]) => [id, findPart(vehicle, name)]))
-  const missing = Object.entries(windows).filter(([, node]) => !node?.isMesh).map(([id]) => id)
-  if (missing.length) throw new Error(`模型缺少独立侧窗部件：${missing.join('、')}`)
+
+  const windows = Object.fromEntries(
+    Object.entries(WINDOW_NODES).map(([id, name]) => [id, findPart(vehicle, name)]),
+  )
+  const missingWindows = Object.entries(windows).filter(([, node]) => !node?.isMesh).map(([id]) => id)
+  if (missingWindows.length) throw new Error(`模型缺少独立侧窗部件：${missingWindows.join('、')}`)
+
+  /** Hinged parts keep their authored pivot and local axis; the controller only adds an angle. */
+  const describeHinge = (parts, missing) => Object.fromEntries(Object.entries(parts).map(([id, definition]) => {
+    const node = findPart(vehicle, definition.node)
+    if (!node) {
+      missing.push(definition.node)
+      return [id, null]
+    }
+    return [id, {
+      id,
+      node,
+      label: definition.label,
+      axis: definition.axis,
+      angle: definition.angle,
+      base: node.rotation[definition.axis],
+    }]
+  }))
+
+  const missingParts = []
+  const doors = describeHinge(DOOR_PARTS, missingParts)
+  const trunks = describeHinge(TRUNK_PARTS, missingParts)
+  if (missingParts.length) throw new Error(`模型缺少车门或备箱节点：${missingParts.join('、')}`)
+
+  const axles = {}
+  for (const [id, definition] of Object.entries(AXLE_PARTS)) {
+    const node = findPart(vehicle, definition.node)
+    if (!node) throw new Error(`模型缺少轮轴节点：${definition.node}`)
+    axles[id] = { id, node, label: definition.label, base: node.rotation.x, angle: 0 }
+  }
+  if (new Set(Object.values(axles).map((axle) => axle.node)).size !== 2) {
+    throw new Error('前后轮轴解析到同一个节点，无法分别滚动')
+  }
+
+  const mutableNames = collectMutableMaterialNames()
+  const materials = cloneMutableMaterials(vehicle, mutableNames)
+  if (!materials.paint.length) throw new Error(`模型缺少车漆材质：${PAINT_MATERIAL}`)
+  const emptyLightGroups = Object.entries(materials.lights).filter(([, list]) => !list.length).map(([id]) => id)
+  if (emptyLightGroups.length) throw new Error(`模型缺少灯光材质：${emptyLightGroups.join('、')}`)
+
+  /** Real light meshes, used to anchor the emissive cones onto the body. */
+  const lightRig = Object.fromEntries(Object.entries(LIGHT_CONES).map(([id, entry]) => [
+    id,
+    entry.nodes.map((name) => findPart(vehicle, name)).filter(Boolean),
+  ]))
+  const missingRig = Object.entries(lightRig).filter(([, nodes]) => !nodes.length).map(([id]) => id)
+  if (missingRig.length) throw new Error(`模型缺少灯光锥锚点：${missingRig.join('、')}`)
 
   vehicle.traverse((node) => {
     if (!node.isMesh) return
@@ -53,6 +104,22 @@ export async function loadVehicle(onProgress = () => {}) {
   root.scale.setScalar(scale)
   root.rotation.y = Math.PI
   root.updateMatrixWorld(true)
+
+  // Rolling radius taken from the front axle so wheel spin matches the road scroll.
+  const wheelBounds = new THREE.Box3().setFromObject(axles.front.node)
+  const wheelRadius = Math.max((wheelBounds.max.y - wheelBounds.min.y) / 2, 0.05)
+
   onProgress(1)
-  return { root, windows }
+  return {
+    root,
+    vehicle,
+    windows,
+    doors,
+    trunks,
+    axles,
+    lightRig,
+    materials,
+    wheelRadius,
+    modelPath: VEHICLE_MODEL_PATH,
+  }
 }
