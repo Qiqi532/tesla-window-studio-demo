@@ -425,6 +425,10 @@ test('统一拾取只切换最近的重叠部件，并在销毁时移除监听�
   })
   fixture.scene.updateMatrixWorld(true)
 
+  assert.deepEqual(
+    controller.getHitTargets().map((target) => `${target.userData.partGroup}:${target.userData.partId}`).sort(),
+    ['door:FL', 'door:FR', 'door:RL', 'door:RR', 'trunk:frunk', 'trunk:trunk'],
+  )
   assert.equal(controller.pickAt(160, 100).windowId, 'FL')
   fixture.listeners.get('pointerdown')({ button: 0, clientX: 160, clientY: 100, pointerId: 1 })
   fixture.listeners.get('pointerup')({ clientX: 160, clientY: 100, pointerId: 1 })
