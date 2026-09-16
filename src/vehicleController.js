@@ -198,14 +198,12 @@ export function createVehicleState() {
           if (state.gear !== 'P' && state.speed > MOVING_TOLERANCE_KMH) {
             return fail('gear-blocked-moving', { gear, from: state.gear, speed: state.speed })
           }
-        } else if (state.speed > MOVING_TOLERANCE_KMH) {
-          // Parking while rolling is allowed: the car coasts down to a stop.
-          state.targetSpeed = 0
         }
 
         const previous = state.gear
         state.gear = gear
         state.targetSpeed = GEAR_DEFAULT_SPEED[gear]
+        if (gear === 'P') state.speed = 0
         notify()
         return done([gear], 'gear-changed', { gear, from: previous, speed: state.targetSpeed })
       }
@@ -319,7 +317,7 @@ export function describeCommand(result) {
     }
     case 'gear-changed':
       return detail.gear === 'P'
-        ? '已挂入 P 档，车辆正在停止。'
+        ? '已挂入 P 档，车辆已停止。'
         : `已挂入 ${detail.gear} 档，视觉速度 ${GEAR_DEFAULT_SPEED[detail.gear]} km/h。`
     case 'gear-unchanged':
       return `已经在 ${detail.gear} 档。`
@@ -409,6 +407,12 @@ export function createVehicleController({
   const hitTargets = hinges
     .map((part) => createHingeHitTarget(part, part.group === 'door' ? vehicle.windows[part.id] : null))
     .filter(Boolean)
+
+  /**
+   * Every pickable part in one list. A single closest-hit raycaster then decides what a
+   * click means, so overlapping parts can never both react to the same click.
+   */
+  const pickTargets = [...hitTargets, ...(windowController?.getHitTargets?.() ?? [])]
 
   /* --- emissive light cones anchored on the real light meshes --- */
   const coneGroup = new THREE.Group()
@@ -533,10 +537,15 @@ export function createVehicleController({
       return [...hitTargets]
     },
 
+    /** Resolve a screen position to the single part a real click would toggle. */
+    pickAt(clientX, clientY) {
+      return resolvePick(clientX, clientY)
+    },
+
     /**
      * Single entry point for buttons, model clicks and (later) voice commands.
      * Window commands forward to the window controller, so all four panes keep their
-     * existing independent control, click picking and reverse-during-animation.
+     * existing independent control and reverse-during-animation.
      */
     dispatch(command) {
       if (command?.type === 'set-window') {
@@ -554,6 +563,7 @@ export function createVehicleController({
         const changed = all
           ? windowController.setAllWindows(open === 1)
           : valid.filter((id) => windowController.setWindow(id, open === 1)).length > 0
+        if (changed) emit()
         return {
           ok: true,
           changed: changed ? valid : [],
@@ -645,20 +655,19 @@ export function createVehicleController({
   applyHinges()
   applyIllumination(state.advance(0).illumination, 0)
 
-  /* --- pointer picking for doors and lids --- */
-  // Registered after the window controller in main.js, so its hover cursor wins
-  // whenever both a door and its glass sit under the pointer.
+  /* --- pointer picking: one raycaster arbitrates windows, doors and lids --- */
   const raycaster = new THREE.Raycaster()
   const pointer = new THREE.Vector2()
-  const pick = (event) => {
+  const resolvePick = (clientX, clientY) => {
+    if (!pickTargets.length) return null
     const rect = canvas.getBoundingClientRect()
     pointer.set(
-      ((event.clientX - rect.left) / rect.width) * 2 - 1,
-      -((event.clientY - rect.top) / rect.height) * 2 + 1,
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
     )
     raycaster.setFromCamera(pointer, camera)
-    const hit = raycaster.intersectObjects(hitTargets, false)[0]
-    return hit ? hit.object.userData : null
+    const hit = raycaster.intersectObjects(pickTargets, false)[0]
+    return hit ? { ...hit.object.userData, distance: Number(hit.distance.toFixed(4)) } : null
   }
 
   let pointerDown = null
@@ -671,21 +680,27 @@ export function createVehicleController({
     const movement = Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y)
     pointerDown = null
     if (movement > 6) return
-    const target = pick(event)
+    const target = resolvePick(event.clientX, event.clientY)
     if (!target) return
+
+    if (target.windowId) {
+      const open = controller.getState().windows[target.windowId].target === 1 ? 0 : 1
+      feedback(controller.dispatch({ type: 'set-window', targets: [target.windowId], value: open }).message)
+      return
+    }
+
     const snapshot = controller.getState()
     const group = target.partGroup === 'door' ? snapshot.doors : snapshot.trunks
     const open = group[target.partId].target === 1 ? 0 : 1
-    const result = controller.dispatch({
+    feedback(controller.dispatch({
       type: target.partGroup === 'door' ? 'set-door' : 'set-trunk',
       targets: [target.partId],
       value: open,
-    })
-    feedback(result.message)
+    }).message)
   }
   const onPointerMove = (event) => {
     if (pointerDown) return
-    if (pick(event)) canvas.style.cursor = 'pointer'
+    canvas.style.cursor = resolvePick(event.clientX, event.clientY) ? 'pointer' : 'grab'
   }
   const onPointerCancel = () => { pointerDown = null }
 

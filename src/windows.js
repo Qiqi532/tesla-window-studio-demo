@@ -95,7 +95,7 @@ function createGlassMotion(node) {
   }
 }
 
-export function createWindowController({ scene, camera, canvas, windows, feedback }) {
+export function createWindowController({ scene, windows }) {
   const state = createWindowState()
   const motions = Object.fromEntries(WINDOW_IDS.map((id) => [id, createGlassMotion(windows[id])]))
   const hitTargets = WINDOW_IDS.map((id) => {
@@ -112,52 +112,18 @@ export function createWindowController({ scene, camera, canvas, windows, feedbac
     return hit
   })
 
-  const raycaster = new THREE.Raycaster()
-  const pointer = new THREE.Vector2()
-  const pick = (event) => {
-    const rect = canvas.getBoundingClientRect()
-    pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1)
-    raycaster.setFromCamera(pointer, camera)
-    return raycaster.intersectObjects(hitTargets, false)[0]?.object.userData.windowId ?? null
-  }
-
-  let pointerDown = null
-  const onPointerDown = (event) => {
-    if (event.button !== 0) return
-    pointerDown = { x: event.clientX, y: event.clientY, id: event.pointerId }
-  }
-  const onPointerUp = (event) => {
-    if (!pointerDown || pointerDown.id !== event.pointerId) return
-    const movement = Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y)
-    pointerDown = null
-    if (movement > 6) return
-    const id = pick(event)
-    if (!id) return
-    const open = !state.getState()[id].target
-    state.setWindow(id, open)
-    feedback(`${WINDOW_LABELS[id]}已${open ? '打开' : '关闭'}。`)
-  }
-  const onPointerMove = (event) => {
-    if (pointerDown) return
-    canvas.style.cursor = pick(event) ? 'pointer' : 'grab'
-  }
-  const onPointerCancel = () => { pointerDown = null }
-  canvas.addEventListener('pointerdown', onPointerDown)
-  canvas.addEventListener('pointerup', onPointerUp)
-  canvas.addEventListener('pointermove', onPointerMove)
-  canvas.addEventListener('pointercancel', onPointerCancel)
-
+  // Pointer picking lives in the vehicle controller: it arbitrates between windows,
+  // doors and lids so one click can never toggle two parts that overlap on screen.
   return {
     ...state,
+    getHitTargets() {
+      return [...hitTargets]
+    },
     update(delta) {
       const entries = state.advance(delta)
       for (const id of WINDOW_IDS) motions[id].update(entries[id].current)
     },
     dispose() {
-      canvas.removeEventListener('pointerdown', onPointerDown)
-      canvas.removeEventListener('pointerup', onPointerUp)
-      canvas.removeEventListener('pointermove', onPointerMove)
-      canvas.removeEventListener('pointercancel', onPointerCancel)
       for (const hit of hitTargets) {
         scene.remove(hit)
         hit.geometry.dispose()

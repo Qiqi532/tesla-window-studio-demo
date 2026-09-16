@@ -147,6 +147,10 @@ function installAuditHook(vehicle, controller) {
     ])),
     windowPoints: Object.fromEntries(Object.entries(vehicle.windows).map(([id, node]) => [id, project(node)])),
   })
+
+  // Lets the browser pass confirm that a screen position really resolves to the part it
+  // is about to click, instead of assuming the projected bounding-box centre is free.
+  globalThis.__vehiclePickAt = (clientX, clientY) => controller.pickAt(clientX, clientY)
 }
 
 async function start() {
@@ -158,18 +162,14 @@ async function start() {
     studio.scene.add(vehicle.root)
     vehicle.root.updateMatrixWorld(true)
 
-    // The window controller still owns the glass slide motion and the window picking.
+    // The window controller owns the glass slide motion and registers the window click
+    // areas. The vehicle controller arbitrates all picking across windows, doors and lids.
     windowController = createWindowController({
       scene: studio.scene,
-      camera: studio.camera,
-      canvas: studio.renderer.domElement,
       windows: vehicle.windows,
-      feedback,
     })
     windowController.update(0)
 
-    // The vehicle controller is created afterwards so its door/lid picking and hover
-    // cursor take precedence where a door and its glass overlap on screen.
     vehicleController = createVehicleController({
       vehicle,
       scene: studio.scene,

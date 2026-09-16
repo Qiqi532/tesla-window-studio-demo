@@ -166,9 +166,10 @@ test('D 与 R 之间切换需要先停车', () => {
   assert.equal(blocked.code, 'gear-blocked-moving')
   assert.equal(state.getState().gear, 'D')
 
-  state.dispatch({ type: 'set-gear', value: 'P' })
-  advanceFor(state, 12)
+  const parked = state.dispatch({ type: 'set-gear', value: 'P' })
   assert.equal(state.getState().speed, 0)
+  assert.equal(state.getState().targetSpeed, 0)
+  assert.match(describeCommand(parked), /车辆已停止/)
   assert.equal(state.dispatch({ type: 'set-gear', value: 'R' }).ok, true)
   assert.equal(state.getState().gear, 'R')
 })
@@ -334,6 +335,7 @@ test('可变材质按网格克隆，未列入的共享材质保持原样', () =>
 
 function createFixture() {
   const scene = new THREE.Scene()
+  const listeners = new Map()
   const root = new THREE.Group()
   root.rotation.y = Math.PI
   root.scale.setScalar(0.01)
@@ -366,6 +368,7 @@ function createFixture() {
   const windowState = Object.fromEntries(WINDOW_IDS.map((id) => [id, { current: 0, target: 0 }]))
   const windowController = {
     getState: () => Object.fromEntries(Object.entries(windowState).map(([id, entry]) => [id, { ...entry }])),
+    getHitTargets: () => [],
     setWindow(id, open) {
       const target = open ? 1 : 0
       if (windowState[id].target === target) return false
@@ -387,14 +390,55 @@ function createFixture() {
 
   const canvas = {
     style: {},
-    addEventListener() {},
-    removeEventListener() {},
+    addEventListener(type, listener) { listeners.set(type, listener) },
+    removeEventListener(type, listener) {
+      if (listeners.get(type) === listener) listeners.delete(type)
+    },
     getBoundingClientRect: () => ({ left: 0, top: 0, width: 320, height: 200 }),
   }
 
   const vehicle = { root, windows, doors, trunks, axles, lightRig, materials, wheelRadius: 0.4 }
-  return { vehicle, scene, canvas, windowController, materials }
+  return { vehicle, scene, canvas, listeners, windowController, windowState, materials }
 }
+
+test('统一拾取只切换最近的重叠部件，并在销毁时移除监听器', () => {
+  const fixture = createFixture()
+  const windowHit = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 0.4))
+  windowHit.position.z = 2
+  windowHit.userData.windowId = 'FL'
+  fixture.scene.add(windowHit)
+  fixture.windowController.getHitTargets = () => [windowHit]
+
+  const camera = new THREE.PerspectiveCamera(50, 1.6, 0.1, 20)
+  camera.position.set(0, 0, 5)
+  camera.lookAt(0, 0, 0)
+  camera.updateMatrixWorld(true)
+
+  const feedbackMessages = []
+  const controller = createVehicleController({
+    vehicle: fixture.vehicle,
+    scene: fixture.scene,
+    camera,
+    canvas: fixture.canvas,
+    windowController: fixture.windowController,
+    feedback: (message) => feedbackMessages.push(message),
+  })
+  fixture.scene.updateMatrixWorld(true)
+
+  assert.equal(controller.pickAt(160, 100).windowId, 'FL')
+  fixture.listeners.get('pointerdown')({ button: 0, clientX: 160, clientY: 100, pointerId: 1 })
+  fixture.listeners.get('pointerup')({ clientX: 160, clientY: 100, pointerId: 1 })
+
+  assert.equal(fixture.windowState.FL.target, 1)
+  assert.equal(controller.getState().doors.FL.target, 0, '重叠的车门不得同时打开')
+  assert.equal(feedbackMessages.length, 1, '一次点击只应产生一次操作反馈')
+
+  assert.deepEqual([...fixture.listeners.keys()].sort(), [
+    'pointercancel', 'pointerdown', 'pointermove', 'pointerup',
+  ])
+  controller.dispose()
+  assert.equal(fixture.listeners.size, 0)
+})
 
 test('控制器更新让车门转角、轮轴滚动与道路速度保持联动', () => {
   const fixture = createFixture()
@@ -463,10 +507,13 @@ test('控制器把车窗命令转发给车窗控制器，行驶中车窗仍然�
     windowController: fixture.windowController,
     feedback: () => {},
   })
+  const observedWindowTargets = []
+  const unsubscribe = controller.subscribe((snapshot) => observedWindowTargets.push(snapshot.windows.FL.target))
 
   const opened = controller.dispatch({ type: 'set-window', targets: ['FL'], value: 1 })
   assert.equal(opened.ok, true)
   assert.equal(controller.getState().windows.FL.target, 1)
+  assert.deepEqual(observedWindowTargets, [0, 1], '统一控制器订阅者应立即收到车窗状态变化')
 
   const all = controller.dispatch({ type: 'set-window', targets: [...WINDOW_IDS], value: 1 })
   assert.equal(all.ok, true)
@@ -478,6 +525,7 @@ test('控制器把车窗命令转发给车窗控制器，行驶中车窗仍然�
   // Door and lid commands are locked while driving, windows are not.
   assert.equal(controller.dispatch({ type: 'set-door', targets: ['FL'], value: 1 }).code, 'door-locked-while-driving')
   assert.equal(controller.dispatch({ type: 'set-window', targets: ['FL'], value: 0 }).ok, true)
+  unsubscribe()
 })
 
 test('控制器把车漆、轮毂与灯光应用到克隆材质上', () => {
