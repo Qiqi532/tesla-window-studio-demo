@@ -4,6 +4,7 @@ import {
   GEARS,
   GEAR_SPEED_LIMITS,
   LIGHT_LABELS,
+  MANUAL_LIGHT_IDS,
   PAINT_PRESETS,
   TRUNK_PARTS,
   WHEEL_PRESETS,
@@ -16,7 +17,6 @@ const bySelectorAll = (selector) => [...document.querySelectorAll(selector)]
 export function createEnvironmentUi({ environment, cameraRig, feedback }) {
   const toolbar = document.getElementById('experience-toolbar')
   const status = document.getElementById('environment-status')
-  const equipmentButton = document.getElementById('equipment-toggle')
   const orbitButton = document.getElementById('orbit-toggle')
   const cleanups = []
 
@@ -56,11 +56,6 @@ export function createEnvironmentUi({ environment, cameraRig, feedback }) {
       feedback(`镜头正在转向${CAMERA_PRESETS[button.dataset.camera].label}预设。`)
     })
   }
-  listen(equipmentButton, 'click', () => {
-    const visible = !environment.getState().equipmentVisible
-    environment.setEquipmentVisible(visible)
-    feedback(`幕后灯光设备已${visible ? '显示' : '隐藏'}，布光效果保持不变。`)
-  })
   listen(orbitButton, 'click', () => {
     const enabled = !cameraRig.getState().autoOrbit
     cameraRig.setAutoOrbit(enabled)
@@ -70,8 +65,6 @@ export function createEnvironmentUi({ environment, cameraRig, feedback }) {
   const unsubscribeEnvironment = environment.subscribe((state) => {
     for (const button of bySelectorAll('[data-scene]')) button.classList.toggle('is-active', button.dataset.scene === state.mode)
     for (const button of bySelectorAll('[data-weather]')) button.classList.toggle('is-active', button.dataset.weather === state.weather && state.mode === 'road')
-    equipmentButton.classList.toggle('is-active', state.equipmentVisible)
-    equipmentButton.setAttribute('aria-pressed', String(state.equipmentVisible))
     status.textContent = state.roadAssetsLoading
       ? '道路资源加载中…'
       : state.mode === 'studio'
@@ -158,7 +151,7 @@ export function createVehicleUi({ vehicle: controller, feedback }) {
   }
 
   /* --- lights --- */
-  const lightIds = ['headlight', 'fog', 'tail', 'interior', 'indicatorLeft', 'indicatorRight', 'hazard']
+  const lightIds = [...MANUAL_LIGHT_IDS]
   for (const id of lightIds) {
     const button = document.createElement('button')
     button.type = 'button'
@@ -258,8 +251,11 @@ export function createVehicleUi({ vehicle: controller, feedback }) {
       button.classList.toggle('is-on', on)
       button.setAttribute('aria-pressed', String(on))
     }
-    const litNow = Object.entries(state.illumination)
-      .filter(([id, level]) => level === 1 && id !== 'indicatorLeft' && id !== 'indicatorRight')
+    const litNow = [
+      ...Object.entries(state.switches),
+      ...Object.entries(state.illumination).filter(([id]) => id === 'brake' || id === 'reverse'),
+    ]
+      .filter(([, level]) => level === 1)
       .map(([id]) => LIGHT_LABELS[id])
     document.getElementById('light-summary').textContent = litNow.length ? `${litNow.join('、')} 亮起` : '灯光已关闭'
 

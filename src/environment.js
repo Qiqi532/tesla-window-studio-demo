@@ -11,7 +11,6 @@ export function createEnvironmentState() {
   let value = {
     mode: 'studio',
     weather: 'sunny',
-    equipmentVisible: false,
     roadAssetsLoaded: false,
     roadAssetsLoading: false,
   }
@@ -37,55 +36,9 @@ export function createEnvironmentState() {
       if (!WEATHER_TYPES.has(weather)) throw new Error(`未知天气：${weather}`)
       update({ weather, mode: 'road' })
     },
-    setEquipmentVisible(equipmentVisible) { update({ equipmentVisible: Boolean(equipmentVisible) }) },
     setRoadAssetStatus(patch) { update(patch) },
     dispose() { subscribers.clear() },
   }
-}
-
-function makeSoftbox(position, scale, color) {
-  const group = new THREE.Group()
-  group.position.copy(position)
-  const panel = new THREE.Mesh(
-    new THREE.BoxGeometry(1.35, 0.08, 0.85),
-    new THREE.MeshStandardMaterial({ color: '#1a2028', emissive: color, emissiveIntensity: 0.85, roughness: 0.34 }),
-  )
-  panel.rotation.x = Math.PI / 2
-  panel.scale.copy(scale)
-  panel.lookAt(0, 0.65, 0)
-  group.add(panel)
-  const standMaterial = new THREE.MeshStandardMaterial({ color: '#202833', metalness: 0.7, roughness: 0.35 })
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 2.45, 8), standMaterial)
-  pole.position.y = -1.25
-  group.add(pole)
-  for (const angle of [-0.9, 0, 0.9]) {
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.027, 1.05, 7), standMaterial)
-    leg.position.set(Math.sin(angle) * 0.34, -2.32, Math.cos(angle) * 0.34)
-    leg.rotation.z = Math.sin(angle) * 0.42
-    leg.rotation.x = Math.cos(angle) * 0.42
-    group.add(leg)
-  }
-  return group
-}
-
-function createTripodCamera() {
-  const group = new THREE.Group()
-  group.position.set(3.9, 1.55, 5.2)
-  group.lookAt(0, 0.7, 0)
-  const material = new THREE.MeshStandardMaterial({ color: '#111820', metalness: 0.72, roughness: 0.3 })
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.34, 0.72), material)
-  group.add(body)
-  const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.19, 0.38, 16), material)
-  lens.rotation.x = Math.PI / 2
-  lens.position.z = -0.5
-  group.add(lens)
-  for (const x of [-0.42, 0, 0.42]) {
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.04, 2.7, 8), material)
-    leg.position.set(x, -1.5, Math.abs(x) * 0.28)
-    leg.rotation.z = -x * 0.22
-    group.add(leg)
-  }
-  return group
 }
 
 function createStudioRig(scene) {
@@ -123,18 +76,8 @@ function createStudioRig(scene) {
   lights.add(hemisphere, key, fill, rim, shadow)
   root.add(lights)
 
-  const equipment = new THREE.Group()
-  equipment.name = 'behind-the-scenes-equipment'
-  equipment.add(
-    makeSoftbox(new THREE.Vector3(-4.2, 4.9, 4.7), new THREE.Vector3(1.2, 1, 1), '#d8efff'),
-    makeSoftbox(new THREE.Vector3(5.1, 3.2, 3.1), new THREE.Vector3(0.9, 1, 0.85), '#8abbe8'),
-    makeSoftbox(new THREE.Vector3(-2.8, 3.4, -4.8), new THREE.Vector3(0.75, 1, 0.75), '#efa96f'),
-    createTripodCamera(),
-  )
-  equipment.visible = false
-  root.add(equipment)
   scene.add(root)
-  return { root, floor, lights: { hemisphere, key, fill, rim, shadow }, equipment }
+  return { root, floor, lights: { hemisphere, key, fill, rim, shadow } }
 }
 
 function configureTexture(texture, { color = false, repeat = [2, 10] } = {}) {
@@ -302,7 +245,6 @@ export function createEnvironmentController({
     const current = state.getState()
     const inStudio = current.mode === 'studio'
     studio.floor.visible = inStudio
-    studio.equipment.visible = inStudio && current.equipmentVisible
     if (road) road.root.visible = !inStudio
     weatherController.setRoadActive(!inStudio)
     weatherController.setWeather(current.weather)
@@ -347,10 +289,6 @@ export function createEnvironmentController({
       await ensureRoadAssets()
       state.setWeather(weather)
       applyCurrentState()
-    },
-    setEquipmentVisible(visible) {
-      state.setEquipmentVisible(visible)
-      studio.equipment.visible = state.getState().mode === 'studio' && Boolean(visible)
     },
     /**
      * Visual speed of the looped road in scene units per second, along the car's

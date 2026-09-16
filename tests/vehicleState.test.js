@@ -3,8 +3,8 @@ import assert from 'node:assert/strict'
 import * as THREE from 'three'
 
 import {
-  BLINK_INTERVAL_SECONDS,
   COMMAND_TYPES,
+  TOGGLEABLE_LIGHTS,
   createVehicleController,
   createVehicleState,
   describeCommand,
@@ -230,41 +230,12 @@ test('刹车灯与倒车灯不接受手动开关', () => {
   assert.equal(state.dispatch({ type: 'set-light', targets: ['reverse'], value: 1 }).code, 'light-is-automatic')
 })
 
-test('转向灯与双闪共享 500 ms 闪烁时钟', () => {
+test('只保留模型中可见的三组手动灯光', () => {
+  assert.deepEqual([...TOGGLEABLE_LIGHTS], ['headlight', 'fog', 'tail'])
   const state = createVehicleState()
-  state.dispatch({ type: 'set-light', targets: ['hazard'], value: 1 })
-
-  const toggles = []
-  let previous = null
-  for (let frame = 0; frame < 240; frame += 1) {
-    const snapshot = state.advance(FRAME)
-    assert.equal(snapshot.illumination.indicatorLeft, snapshot.illumination.indicatorRight, '双闪必须左右同步')
-    if (previous !== null && snapshot.illumination.indicatorLeft !== previous) toggles.push(frame * FRAME)
-    previous = snapshot.illumination.indicatorLeft
+  for (const removed of ['interior', 'indicatorLeft', 'indicatorRight', 'hazard']) {
+    assert.equal(state.dispatch({ type: 'set-light', targets: [removed], value: 1 }).code, 'invalid-target')
   }
-
-  assert.ok(toggles.length >= 7, `4 秒内应闪烁多次，实际 ${toggles.length}`)
-  // The clock is sampled once per frame, so allow a one-frame quantisation on each gap.
-  const tolerance = 2 * FRAME
-  for (let index = 1; index < toggles.length; index += 1) {
-    const gap = toggles[index] - toggles[index - 1]
-    assert.ok(Math.abs(gap - BLINK_INTERVAL_SECONDS) <= tolerance, `闪烁间隔应约为 ${BLINK_INTERVAL_SECONDS}s，实际 ${gap}`)
-  }
-  const averageGap = (toggles[toggles.length - 1] - toggles[0]) / (toggles.length - 1)
-  assert.ok(Math.abs(averageGap - BLINK_INTERVAL_SECONDS) <= FRAME / 2, `平均闪烁间隔应约为 ${BLINK_INTERVAL_SECONDS}s，实际 ${averageGap}`)
-
-  // A single-side indicator blinks on the same clock.
-  state.dispatch({ type: 'set-light', targets: ['hazard'], value: 0 })
-  state.dispatch({ type: 'set-light', targets: ['indicatorLeft'], value: 1 })
-  let leftSeen = new Set()
-  let rightSeen = new Set()
-  for (let frame = 0; frame < 120; frame += 1) {
-    const snapshot = state.advance(FRAME)
-    leftSeen.add(snapshot.illumination.indicatorLeft)
-    rightSeen.add(snapshot.illumination.indicatorRight)
-  }
-  assert.deepEqual([...leftSeen].sort(), [0, 1])
-  assert.deepEqual([...rightSeen], [0])
 })
 
 test('车漆与轮毂预设只在取值变化时切换', () => {
@@ -327,7 +298,8 @@ test('可变材质按网格克隆，未列入的共享材质保持原样', () =>
   assert.equal(trimOriginal.color.getHex(), new THREE.Color('#ffffff').getHex())
 
   const names = collectMutableMaterialNames()
-  assert.ok(names.has(PAINT_MATERIAL) && names.has(RIM_MATERIALS[0]) && names.has('light_night'))
+  assert.ok(names.has(PAINT_MATERIAL) && names.has(RIM_MATERIALS[0]) && names.has('foglight_l'))
+  assert.ok(!names.has('light_night'))
   assert.ok(!names.has('movsteer_1.0.1'))
 })
 

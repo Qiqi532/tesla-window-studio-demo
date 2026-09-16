@@ -1,35 +1,106 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { parseCommand } from '../src/parseCommand.js'
+import { createCommandDispatcher } from '../src/commandDispatcher.js'
 import { createWindowState } from '../src/windows.js'
 
-test('没有指定位置的开关命令控制全部四窗', () => {
-  assert.deepEqual(parseCommand('打开车窗'), { targets: ['FL', 'FR', 'RL', 'RR'], open: true })
-  assert.deepEqual(parseCommand('关闭窗户。'), { targets: ['FL', 'FR', 'RL', 'RR'], open: false })
-})
-
-test('驾驶位和四个方位能够分别识别', () => {
+test('车窗命令使用统一格式并识别位置、范围和同义词', () => {
   const cases = [
-    ['打开驾驶位车窗', 'FL'],
-    ['降下左前窗', 'FL'],
-    ['开启副驾驶车窗', 'FR'],
-    ['打开右前窗', 'FR'],
-    ['把左后车窗打开', 'RL'],
-    ['打开右后窗', 'RR'],
+    ['打开车窗', ['FL', 'FR', 'RL', 'RR'], 1],
+    ['关闭窗户。', ['FL', 'FR', 'RL', 'RR'], 0],
+    ['降下驾驶位侧窗', ['FL'], 1],
+    ['升起副驾车玻璃', ['FR'], 0],
+    ['把后排车窗摇下', ['RL', 'RR'], 1],
+    ['关上左后窗', ['RL'], 0],
   ]
-  for (const [text, id] of cases) assert.deepEqual(parseCommand(text), { targets: [id], open: true })
+
+  for (const [originalText, targets, value] of cases) {
+    assert.deepEqual(parseCommand(originalText), {
+      type: 'set-window',
+      targets,
+      value,
+      originalText,
+    })
+  }
 })
 
-test('指定范围和关闭同义词', () => {
-  assert.deepEqual(parseCommand('把后排车窗升上去'), { targets: ['RL', 'RR'], open: false })
-  assert.deepEqual(parseCommand('关上右前车窗'), { targets: ['FR'], open: false })
-  assert.deepEqual(parseCommand('摇上左后窗'), { targets: ['RL'], open: false })
+test('车门必须给出位置或明确说全部', () => {
+  assert.deepEqual(parseCommand('打开左前车门'), {
+    type: 'set-door', targets: ['FL'], value: 1, originalText: '打开左前车门',
+  })
+  assert.deepEqual(parseCommand('关闭全部车门'), {
+    type: 'set-door', targets: ['FL', 'FR', 'RL', 'RR'], value: 0, originalText: '关闭全部车门',
+  })
+  assert.deepEqual(parseCommand('打开车门'), {
+    error: 'missing-position', originalText: '打开车门',
+  })
 })
 
-test('未理解或冲突指令不会产生动作', () => {
-  assert.equal(parseCommand('打开大灯'), null)
-  assert.equal(parseCommand('看看车窗'), null)
-  assert.equal(parseCommand('打开再关闭车窗'), null)
+test('前后备箱、灯光和天气命令映射为标准命令', () => {
+  const cases = [
+    ['打开前备箱', 'set-trunk', ['frunk'], 1],
+    ['关闭后备箱', 'set-trunk', ['trunk'], 0],
+    ['开启大灯', 'set-light', ['headlight'], 1],
+    ['关掉雾灯', 'set-light', ['fog'], 0],
+    ['打开尾灯', 'set-light', ['tail'], 1],
+    ['切换晴天', 'set-weather', ['environment'], 'sunny'],
+    ['换成阴天', 'set-weather', ['environment'], 'cloudy'],
+    ['切换雨天', 'set-weather', ['environment'], 'rain'],
+  ]
+
+  for (const [originalText, type, targets, value] of cases) {
+    assert.deepEqual(parseCommand(originalText), { type, targets, value, originalText })
+  }
+})
+
+test('歧义、动作冲突、行驶和无关指令给出明确错误', () => {
+  const cases = [
+    ['打开备箱', 'missing-position'],
+    ['打开转向灯', 'unavailable-light'],
+    ['开启双闪', 'unavailable-light'],
+    ['关闭车内灯', 'unavailable-light'],
+    ['打开灯光', 'missing-target'],
+    ['打开再关闭车窗', 'ambiguous-action'],
+    ['挂D档', 'driving-control-not-supported'],
+    ['把速度调到五十', 'driving-control-not-supported'],
+    ['播放音乐', 'unsupported-command'],
+  ]
+  for (const [originalText, error] of cases) {
+    assert.deepEqual(parseCommand(originalText), { error, originalText })
+  }
+})
+
+test('命令分发器把车辆和天气命令送到对应控制器', async () => {
+  const vehicleCommands = []
+  const weatherCommands = []
+  const dispatcher = createCommandDispatcher({
+    vehicle: {
+      dispatch(command) {
+        vehicleCommands.push(command)
+        return { ok: true, changed: command.targets, code: 'lights-on', detail: command }
+      },
+    },
+    environment: {
+      async setWeather(weather) { weatherCommands.push(weather) },
+    },
+  })
+
+  assert.equal(await dispatcher.execute('打开大灯'), '已打开前大灯。')
+  assert.deepEqual(vehicleCommands, [{ type: 'set-light', targets: ['headlight'], value: 1 }])
+  assert.equal(await dispatcher.execute('切换雨天'), '已切换到雨天道路。')
+  assert.deepEqual(weatherCommands, ['rain'])
+})
+
+test('命令分发器反馈歧义，且不把行驶指令送给车辆控制器', async () => {
+  let dispatches = 0
+  const dispatcher = createCommandDispatcher({
+    vehicle: { dispatch() { dispatches += 1 } },
+    environment: { async setWeather() {} },
+  })
+
+  assert.match(await dispatcher.execute('打开车门'), /补充位置/)
+  assert.match(await dispatcher.execute('挂D档'), /按钮/)
+  assert.equal(dispatches, 0)
 })
 
 test('重复目标不更新状态，反向命令可以在动画中执行', () => {

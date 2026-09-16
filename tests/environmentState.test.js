@@ -13,7 +13,6 @@ test('环境状态以影棚启动，天气切换会进入道路并保留已选�
   assert.deepEqual(state.getState(), {
     mode: 'studio',
     weather: 'sunny',
-    equipmentVisible: false,
     roadAssetsLoaded: false,
     roadAssetsLoading: false,
   })

@@ -110,17 +110,14 @@ export const LIGHT_MATERIALS = Object.freeze({
   tail: Object.freeze(['left_rear_light', 'right_rear_light']),
   brake: Object.freeze(['breaklight_l']),
   reverse: Object.freeze(['revlight_L']),
-  interior: Object.freeze(['light_night']),
-  indicatorLeft: Object.freeze(['indicator_lf', 'indicator_lr']),
-  indicatorRight: Object.freeze(['indicator_rf', 'indicator_rr']),
 })
 
 export const LIGHT_IDS = Object.freeze([
-  'headlight', 'fog', 'tail', 'interior', 'indicatorLeft', 'indicatorRight', 'brake', 'reverse',
+  'headlight', 'fog', 'tail', 'brake', 'reverse',
 ])
 
 /** Lights the driver switches directly; brake and reverse follow the gear and speed. */
-export const MANUAL_LIGHT_IDS = Object.freeze(['headlight', 'fog', 'tail', 'interior'])
+export const MANUAL_LIGHT_IDS = Object.freeze(['headlight', 'fog', 'tail'])
 
 export const LIGHT_LABELS = Object.freeze({
   headlight: '前大灯',
@@ -128,10 +125,6 @@ export const LIGHT_LABELS = Object.freeze({
   tail: '尾灯',
   brake: '刹车灯',
   reverse: '倒车灯',
-  interior: '车内灯',
-  indicatorLeft: '左转向灯',
-  indicatorRight: '右转向灯',
-  hazard: '双闪',
 })
 
 /** Emissive tint and peak intensity per light, applied to cloned materials. */
@@ -141,9 +134,6 @@ export const LIGHT_APPEARANCE = Object.freeze({
   tail: { color: '#ff2f34', intensity: 1.9 },
   brake: { color: '#ff1d28', intensity: 4.2 },
   reverse: { color: '#f4f8ff', intensity: 2.6 },
-  interior: { color: '#ffe6bd', intensity: 1.6 },
-  indicatorLeft: { color: '#ff9424', intensity: 3.4 },
-  indicatorRight: { color: '#ff9424', intensity: 3.4 },
 })
 
 /** Body paint. `primary` is the only untextured body-colour material on the shell. */

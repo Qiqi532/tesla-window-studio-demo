@@ -9,6 +9,7 @@ import {
   LIGHT_CONES,
   LIGHT_IDS,
   LIGHT_LABELS,
+  MANUAL_LIGHT_IDS,
   PAINT_PRESETS,
   SCENE_UNITS_PER_KMH,
   TRUNK_IDS,
@@ -28,7 +29,7 @@ export const COMMAND_TYPES = Object.freeze([
 
 /** Lights the driver toggles directly. Brake and reverse follow the gear and the speed. */
 export const TOGGLEABLE_LIGHTS = Object.freeze([
-  'headlight', 'fog', 'tail', 'interior', 'indicatorLeft', 'indicatorRight', 'hazard',
+  ...MANUAL_LIGHT_IDS,
 ])
 export const AUTOMATIC_LIGHTS = Object.freeze(['brake', 'reverse'])
 
@@ -36,8 +37,6 @@ const HINGE_DAMPING = 5.6
 const SPEED_DAMPING = 0.95
 const LIGHT_RAMP_UP = 6.2
 const LIGHT_RAMP_DOWN = 10.5
-/** Shared turn-signal / hazard clock: the lamps toggle every 500 ms. */
-export const BLINK_INTERVAL_SECONDS = 0.5
 const SETTLE_EPSILON = 0.002
 const MOVING_TOLERANCE_KMH = 1
 const MAX_STEP_SECONDS = 0.1
@@ -95,8 +94,6 @@ export function createVehicleState() {
     paint: 'obsidian',
     wheelStyle: 'turbine',
   }
-  let blinkClock = 0
-  let blinkOn = true
   const subscribers = new Set()
 
   const openPartIds = () => Object.entries({ ...state.doors, ...state.trunks })
@@ -120,7 +117,6 @@ export function createVehicleState() {
       .filter(([, entry]) => entry.target === 1)
       .map(([id]) => id),
     openParts: openPartIds(),
-    blinkOn,
   })
 
   const notify = () => {
@@ -240,7 +236,7 @@ export function createVehicleState() {
       return fail('unknown-command', { type: String(type) })
     },
 
-    /** Step the hinge animation, the speed model and the shared blink clock. */
+    /** Step the hinge animation, speed model and automatic lamps. */
     advance(delta) {
       const step = clamp(Number.isFinite(delta) ? delta : 0, 0, MAX_STEP_SECONDS)
 
@@ -256,20 +252,14 @@ export function createVehicleState() {
       const nextSpeed = damp(state.speed, state.targetSpeed, SPEED_DAMPING, step)
       state.speed = Math.abs(nextSpeed - state.targetSpeed) < 0.05 ? state.targetSpeed : nextSpeed
 
-      blinkClock += step
-      blinkOn = Math.floor(blinkClock / BLINK_INTERVAL_SECONDS) % 2 === 0
-
       const decelerating = state.speed - state.targetSpeed > 0.05
       const gearActive = state.gear !== 'P'
       state.illumination = {
         headlight: state.switches.headlight,
         fog: state.switches.fog,
         tail: state.switches.tail,
-        interior: state.switches.interior,
         brake: gearActive && (decelerating || state.targetSpeed === 0) ? 1 : 0,
         reverse: state.gear === 'R' ? 1 : 0,
-        indicatorLeft: (state.switches.indicatorLeft || state.switches.hazard) && blinkOn ? 1 : 0,
-        indicatorRight: (state.switches.indicatorRight || state.switches.hazard) && blinkOn ? 1 : 0,
       }
 
       return getState()
@@ -605,8 +595,6 @@ export function createVehicleController({
         snapshot.gear,
         snapshot.illumination.brake,
         snapshot.illumination.reverse,
-        snapshot.illumination.indicatorLeft,
-        snapshot.illumination.indicatorRight,
         snapshot.opened.length,
       ].join('|')
       if (signature !== lastSignature) {

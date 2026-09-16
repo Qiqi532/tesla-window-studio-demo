@@ -5,11 +5,10 @@ import { loadVehicle } from './vehicle.js'
 import { createWindowController } from './windows.js'
 import { createVehicleController } from './vehicleController.js'
 import { createVoiceControl } from './voice.js'
-import { parseCommand } from './parseCommand.js'
+import { createCommandDispatcher } from './commandDispatcher.js'
 import { createCameraRig } from './cameraRig.js'
 import { createEnvironmentController } from './environment.js'
 import { createEnvironmentUi, createVehicleUi } from './ui.js'
-import { WINDOW_IDS, WINDOW_LABELS } from './vehicleParts.js'
 
 const byId = (id) => document.getElementById(id)
 const feedbackElement = byId('feedback')
@@ -47,29 +46,6 @@ studio.setFrameHandler((delta) => {
   // The looped road and both axles share one visual speed.
   environment.setRoadSpeed(vehicleController.getState().roadSpeed)
 })
-
-/**
- * Voice and text input stay on the same standard command object as the panel buttons
- * and the model clicks. Voice coverage is extended to the other parts in a later stage.
- */
-function executeCommand(text, controller) {
-  const action = parseCommand(text)
-  if (!action) {
-    feedback(`未理解“${text}”。试试“打开车窗”或“关闭驾驶位车窗”。`)
-    return
-  }
-  const result = controller.dispatch({
-    type: 'set-window',
-    targets: action.targets,
-    value: action.open ? 1 : 0,
-  })
-  const subject = action.targets.length === WINDOW_IDS.length
-    ? '全部车窗'
-    : action.targets.map((id) => WINDOW_LABELS[id]).join('、')
-  feedback(result.changed.length
-    ? `已执行“${text}”：${subject}已${action.open ? '打开' : '关闭'}。`
-    : `${subject}已经${action.open ? '打开' : '关闭'}。`)
-}
 
 /**
  * Development-only inspection hook. It reports the real node rotations, material
@@ -131,9 +107,6 @@ function installAuditHook(vehicle, controller) {
         tailEmissive: round(vehicle.materials.lights.tail[0].emissiveIntensity),
         brakeEmissive: round(vehicle.materials.lights.brake[0].emissiveIntensity),
         reverseEmissive: round(vehicle.materials.lights.reverse[0].emissiveIntensity),
-        interiorEmissive: round(vehicle.materials.lights.interior[0].emissiveIntensity),
-        indicatorLeftEmissive: round(vehicle.materials.lights.indicatorLeft[0].emissiveIntensity),
-        indicatorRightEmissive: round(vehicle.materials.lights.indicatorRight[0].emissiveIntensity),
       },
       loadingHidden: cover.classList.contains('is-hidden'),
     }
@@ -181,16 +154,21 @@ async function start() {
     vehicleController.update(0)
 
     vehicleUi = createVehicleUi({ vehicle: vehicleController, feedback })
+    const commandDispatcher = createCommandDispatcher({
+      vehicle: vehicleController,
+      environment,
+    })
+    feedback('车辆控制已就绪：点击车身部件，或使用右侧面板、语音与文字指令。')
     voiceControl = createVoiceControl({
       button: byId('mic-button'),
       label: byId('mic-label'),
       form: byId('command-form'),
       input: byId('command-input'),
-      execute: (text) => executeCommand(text, vehicleController),
+      speechToggle: byId('speech-output-toggle'),
+      execute: (text) => commandDispatcher.execute(text),
       feedback,
     })
     cover.classList.add('is-hidden')
-    feedback('车辆控制已就绪：点击车身部件，或使用右侧面板与语音指令。')
     installAuditHook(vehicle, vehicleController)
   } catch (error) {
     byId('loading-title').textContent = '车模加载失败'
