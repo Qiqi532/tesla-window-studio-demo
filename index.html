@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#070b12" />
-    <meta name="description" content="Tesla Model 3 三维车窗控制演示" />
-    <title>Model 3 · Window Studio</title>
+    <meta name="description" content="Tesla Model 3 影棚、道路与天气三维交互演示" />
+    <title>Model 3 · Scene Studio</title>
   </head>
   <body>
     <div class="app-shell">
@@ -19,10 +19,41 @@
         <div class="stage-noise" aria-hidden="true"></div>
         <div class="stage-topline"><span>INTERACTIVE VEHICLE / 001</span><span>TESLA MODEL 3 · 2018</span></div>
 
+        <nav class="experience-toolbar" id="experience-toolbar" aria-label="场景与天气控制">
+          <div class="toolbar-row">
+            <div class="control-cluster" aria-label="场景">
+              <span class="cluster-label">SCENE</span>
+              <button type="button" data-scene="studio">影棚</button>
+              <button type="button" data-scene="road">道路</button>
+            </div>
+            <div class="control-cluster" aria-label="道路天气">
+              <span class="cluster-label">WEATHER</span>
+              <button type="button" data-weather="sunny">晴天</button>
+              <button type="button" data-weather="cloudy">阴天</button>
+              <button type="button" data-weather="rain">雨天</button>
+            </div>
+            <div class="control-cluster control-cluster-actions">
+              <button type="button" id="equipment-toggle" aria-pressed="false">幕后设备</button>
+              <button type="button" id="orbit-toggle" aria-pressed="false">自动环绕</button>
+            </div>
+          </div>
+          <p id="environment-status" class="environment-status" aria-live="polite">影棚 · 本地反射环境</p>
+        </nav>
+
+        <nav class="camera-strip" aria-label="摄影机预设">
+          <span>CAMERA</span>
+          <button type="button" data-camera="hero">主视觉</button>
+          <button type="button" data-camera="front">正面</button>
+          <button type="button" data-camera="side">侧面</button>
+          <button type="button" data-camera="rear">后方</button>
+          <button type="button" data-camera="top">俯视</button>
+          <button type="button" data-camera="detail">细节</button>
+        </nav>
+
         <section class="hero-copy" aria-label="演示介绍">
           <p class="eyebrow"><span class="eyebrow-line"></span> VEHICLE EXPERIENCE</p>
           <h1>以声音，<br /><em>驱动车窗。</em></h1>
-          <p class="hero-description">拖动探索车身，点击侧窗控制升降。<br />一句口令，四扇车窗即刻响应。</p>
+          <p class="hero-description">在影棚与循环道路之间切换，探索晴雨反射。<br />拖动车身、选择镜头，或用声音控制四扇车窗。</p>
           <div class="interaction-hint"><span class="hint-icon">↔</span> 拖动旋转 <span class="hint-divider"></span><span class="hint-icon">⊕</span> 滚轮缩放 <span class="hint-divider"></span><span class="hint-icon">◎</span> 点击车窗</div>
         </section>
 
@@ -46,7 +77,7 @@
           <p id="feedback" class="feedback" role="status" aria-live="polite">准备就绪，等待你的指令。</p>
         </section>
 
-        <div class="model-credit">MODEL CREDIT <span>·</span> Ameer Studio <span>·</span> <a href="https://sketchfab.com/3d-models/tesla-2018-model-3-5ef9b845aaf44203b6d04e2c677e444f" target="_blank" rel="noopener noreferrer">Sketchfab 原模型 ↗</a> <span>·</span> <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0 ↗</a> <span>·</span> <a id="local-license" href="#" target="_blank" rel="noopener noreferrer">授权说明 ↗</a></div>
+        <div class="model-credit">MODEL CREDIT <span>·</span> Ameer Studio <span>·</span> <a href="https://sketchfab.com/3d-models/tesla-2018-model-3-5ef9b845aaf44203b6d04e2c677e444f" target="_blank" rel="noopener noreferrer">Sketchfab 原模型 ↗</a> <span>·</span> <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0 ↗</a> <span>·</span> <a id="local-license" href="#" target="_blank" rel="noopener noreferrer">车模授权 ↗</a> <span>·</span> <a id="environment-license" href="#" target="_blank" rel="noopener noreferrer">环境素材 CC0 ↗</a></div>
       </main>
     </div>
     <script type="module" src="/src/main.js"></script>

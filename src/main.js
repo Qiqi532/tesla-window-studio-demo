@@ -4,6 +4,9 @@ import { loadVehicle } from './vehicle.js'
 import { createWindowController, WINDOW_LABELS } from './windows.js'
 import { createVoiceControl } from './voice.js'
 import { parseCommand } from './parseCommand.js'
+import { createCameraRig } from './cameraRig.js'
+import { createEnvironmentController } from './environment.js'
+import { createEnvironmentUi } from './ui.js'
 
 const byId = (id) => document.getElementById(id)
 const feedbackElement = byId('feedback')
@@ -12,6 +15,30 @@ const cover = byId('loading-cover')
 const progressBar = byId('loading-progress')
 const studio = createStudio(byId('stage'))
 byId('local-license').href = `${import.meta.env.BASE_URL}assets/TESLA-LICENSE.md`
+byId('environment-license').href = `${import.meta.env.BASE_URL}assets/licenses/ASSET-LICENSES.md`
+
+const cameraRig = createCameraRig({ camera: studio.camera, controls: studio.controls })
+const environment = createEnvironmentController({
+  scene: studio.scene,
+  camera: studio.camera,
+  renderer: studio.renderer,
+  studioEnvironment: studio.studioEnvironment,
+  baseUrl: import.meta.env.BASE_URL,
+  setQualityScale: (scale) => studio.setQualityScale(scale),
+  onLoadProgress: (value) => {
+    const status = byId('environment-status')
+    if (environment.getState().roadAssetsLoading) status.textContent = `道路资源加载中 · ${Math.round(value * 100)}%`
+  },
+})
+const environmentUi = createEnvironmentUi({ environment, cameraRig, feedback })
+let windowController = null
+let voiceControl = null
+
+studio.setFrameHandler((delta) => {
+  cameraRig.update(delta)
+  environment.update(delta)
+  windowController?.update(delta)
+})
 
 function makeControls(controller) {
   const list = byId('window-list')
@@ -69,22 +96,21 @@ async function start() {
     })
     studio.scene.add(vehicle.root)
     vehicle.root.updateMatrixWorld(true)
-    const controller = createWindowController({
+    windowController = createWindowController({
       scene: studio.scene,
       camera: studio.camera,
       canvas: studio.renderer.domElement,
       windows: vehicle.windows,
       feedback,
     })
-    controller.update(0)
-    studio.setFrameHandler((delta) => controller.update(delta))
-    makeControls(controller)
-    createVoiceControl({
+    windowController.update(0)
+    makeControls(windowController)
+    voiceControl = createVoiceControl({
       button: byId('mic-button'),
       label: byId('mic-label'),
       form: byId('command-form'),
       input: byId('command-input'),
-      execute: (text) => executeCommand(text, controller),
+      execute: (text) => executeCommand(text, windowController),
       feedback,
     })
     cover.classList.add('is-hidden')
@@ -97,3 +123,12 @@ async function start() {
 }
 
 start()
+
+window.addEventListener('beforeunload', () => {
+  voiceControl?.dispose()
+  windowController?.dispose()
+  environmentUi.dispose()
+  cameraRig.dispose()
+  environment.dispose()
+  studio.dispose()
+}, { once: true })
