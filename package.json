@@ -7,6 +7,8 @@
     "dev": "vite --configLoader native",
     "build": "vite build --configLoader native",
     "preview": "vite preview --configLoader native",
+    "verify:model": "node scripts/verify-model.mjs",
+    "prebuild": "npm run verify:model",
     "test": "node --test --test-isolation=none tests/*.test.js"
   },
   "dependencies": {
