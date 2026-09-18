@@ -103,6 +103,28 @@ export const LIGHT_CONES = Object.freeze({
   }),
 })
 
+/**
+ * Additive light shafts drawn from the lamp meshes. They only appear in the dark scenes,
+ * where a beam through the air is what actually sells the lamps; in daylight they would
+ * read as grey cones.
+ */
+export const LIGHT_BEAMS = Object.freeze({
+  headlight: Object.freeze({
+    color: '#fff0cd',
+    length: 14,
+    radius: 1.5,
+    opacity: 0.14,
+    drop: 0.03,
+  }),
+  fog: Object.freeze({
+    color: '#ffd9a6',
+    length: 6.5,
+    radius: 1.1,
+    opacity: 0.09,
+    drop: 0.1,
+  }),
+})
+
 /** Materials that make up the rim assembly, keyed by the light they belong to. */
 export const LIGHT_MATERIALS = Object.freeze({
   headlight: Object.freeze(['left_front_light', 'right_front_light']),
@@ -134,6 +156,28 @@ export const LIGHT_APPEARANCE = Object.freeze({
   tail: { color: '#ff2f34', intensity: 1.9 },
   brake: { color: '#ff1d28', intensity: 4.2 },
   reverse: { color: '#f4f8ff', intensity: 2.6 },
+})
+
+/**
+ * Exterior trim with finishes derived from its real-world role.
+ *
+ * `handles` keeps the selected body colour. `graphite` covers the front intake and lower
+ * cladding, which remain neutral rather than inheriting red, blue or silver paint hues.
+ *
+ * Every name here is cloned per mesh before recolouring, exactly like paint and rims,
+ * so the shared originals elsewhere in the model are never repainted.
+ */
+export const PAINT_LINKED_TRIM = Object.freeze({
+  handles: Object.freeze(['primary.002', 'primary.004']),
+  graphite: Object.freeze(['front_black.0', 'dvorright.0', 'hitam.0', 'wheels.1']),
+})
+
+/** Neutral lower-body finish; it never inherits the selected paint hue. */
+export const GRAPHITE_TRIM = Object.freeze({
+  color: '#18191a',
+  metalness: 0.08,
+  roughness: 0.58,
+  envMapIntensity: 0.22,
 })
 
 /** Body paint. `primary` is the only untextured body-colour material on the shell. */

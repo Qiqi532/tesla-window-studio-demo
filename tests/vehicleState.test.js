@@ -9,9 +9,15 @@ import {
   createVehicleState,
   describeCommand,
 } from '../src/vehicleController.js'
-import { cloneMutableMaterials, collectMutableMaterialNames } from '../src/vehicleMaterials.js'
+import {
+  applyPaintLinkedTrim,
+  cloneMutableMaterials,
+  collectMutableMaterialNames,
+  normalizeDisplayMaterials,
+} from '../src/vehicleMaterials.js'
 import {
   DOOR_IDS,
+  LIGHT_BEAMS,
   LIGHT_IDS,
   PAINT_MATERIAL,
   PAINT_PRESETS,
@@ -301,6 +307,263 @@ test('可变材质按网格克隆，未列入的共享材质保持原样', () =>
   assert.ok(names.has(PAINT_MATERIAL) && names.has(RIM_MATERIALS[0]) && names.has('foglight_l'))
   assert.ok(!names.has('light_night'))
   assert.ok(!names.has('movsteer_1.0.1'))
+})
+
+test('显示材质管线生成烟熏玻璃、灯罩材质与石墨内饰，并保留轮毂贴图', () => {
+  const glassMap = new THREE.Texture()
+  const glass = new THREE.MeshStandardMaterial({
+    name: 'glass.0',
+    color: '#ffffff',
+    map: glassMap,
+    opacity: 0.66,
+    transparent: true,
+    metalness: 0,
+    roughness: 0.22,
+  })
+  const rubber = new THREE.MeshStandardMaterial({
+    name: 'wheels.3',
+    color: '#ffffff',
+    metalness: 0.8,
+    roughness: 0.1,
+  })
+  const bakedHubMap = new THREE.Texture()
+  const hub = new THREE.MeshStandardMaterial({ name: 'hub_rf.0', map: bakedHubMap })
+  const interiorMap = new THREE.Texture()
+  const interior = new THREE.MeshStandardMaterial({ name: 'Putih.0', color: '#ffffff', map: interiorMap })
+  const lightMap = new THREE.Texture()
+  const emissiveMap = new THREE.Texture()
+  const headlight = new THREE.MeshStandardMaterial({
+    name: 'left_front_light',
+    color: '#ffffff',
+    emissive: '#ffffff',
+    emissiveIntensity: 1,
+    metalness: 0.5,
+    roughness: 0.1,
+    map: lightMap,
+    emissiveMap,
+  })
+  const reflector = new THREE.MeshStandardMaterial({
+    name: 'pantulans.0',
+    emissive: '#ffffff',
+    emissiveIntensity: 1,
+  })
+  const rearLight = new THREE.MeshStandardMaterial({
+    name: 'left_rear_light',
+    color: '#ffffff',
+    emissive: '#ffffff',
+    emissiveIntensity: 1,
+    map: lightMap,
+    emissiveMap,
+  })
+  const reverseLight = new THREE.MeshStandardMaterial({
+    name: 'revlight_L',
+    color: '#ffffff',
+    emissive: '#ffffff',
+    emissiveIntensity: 1,
+  })
+  const chrome = new THREE.MeshStandardMaterial({
+    name: 'movsteer_1.0.1',
+    color: '#ffffff',
+    metalness: 0.72,
+    roughness: 0.12,
+  })
+  const strayBodyMaterial = new THREE.MeshStandardMaterial({ name: 'primary.004', color: '#b5ff00' })
+  const glassMesh = new THREE.Mesh(new THREE.BoxGeometry(), glass)
+  const rubberMesh = new THREE.Mesh(new THREE.BoxGeometry(), rubber)
+  const hubMesh = new THREE.Mesh(new THREE.BoxGeometry(), hub)
+  const interiorMesh = new THREE.Mesh(new THREE.BoxGeometry(), interior)
+  const headlightMesh = new THREE.Mesh(new THREE.BoxGeometry(), headlight)
+  const reflectorMesh = new THREE.Mesh(new THREE.BoxGeometry(), reflector)
+  const rearLightMesh = new THREE.Mesh(new THREE.BoxGeometry(), rearLight)
+  const reverseLightMesh = new THREE.Mesh(new THREE.BoxGeometry(), reverseLight)
+  const chromeMesh = new THREE.Mesh(new THREE.BoxGeometry(), chrome)
+  const strayBodyMesh = new THREE.Mesh(new THREE.BoxGeometry(), strayBodyMaterial)
+
+  // The lamp covers share one authored material between the front and the rear lamps.
+  const coverMap = new THREE.Texture()
+  const frontCoverMaterial = new THREE.MeshStandardMaterial({
+    name: 'tembus_red.0', color: '#ffffff', opacity: 0.82, map: coverMap,
+  })
+  const rearCoverMaterial = new THREE.MeshStandardMaterial({
+    name: 'tembus_red.0', color: '#ffffff', opacity: 0.82, map: coverMap,
+  })
+  const frontCoverMesh = new THREE.Mesh(new THREE.BoxGeometry(), frontCoverMaterial)
+  frontCoverMesh.position.z = -6
+  const rearCoverMesh = new THREE.Mesh(new THREE.BoxGeometry(), rearCoverMaterial)
+  rearCoverMesh.position.z = 6
+
+  const root = new THREE.Group()
+  root.add(
+    glassMesh,
+    rubberMesh,
+    hubMesh,
+    interiorMesh,
+    headlightMesh,
+    reflectorMesh,
+    rearLightMesh,
+    reverseLightMesh,
+    chromeMesh,
+    strayBodyMesh,
+    frontCoverMesh,
+    rearCoverMesh,
+  )
+
+  normalizeDisplayMaterials(root)
+
+  const normalizedGlass = glassMesh.material
+  assert.equal(normalizedGlass.isMeshPhysicalMaterial, true)
+  assert.equal(normalizedGlass.name, 'glass.0')
+  assert.equal(normalizedGlass.map, null)
+  assert.equal(normalizedGlass.transparent, true)
+  assert.equal(normalizedGlass.depthWrite, false)
+  assert.equal(normalizedGlass.side, THREE.FrontSide)
+  assert.ok(normalizedGlass.opacity >= 0.5)
+  assert.ok(normalizedGlass.transmission > 0 && normalizedGlass.transmission < 0.2)
+  assert.ok(normalizedGlass.envMapIntensity <= 0.35)
+  assert.ok(glassMesh.renderOrder >= 20)
+  assert.equal(glassMesh.castShadow, false)
+  assert.equal(glassMesh.receiveShadow, false)
+  assert.equal(interior.map, interiorMap)
+  assert.ok(interior.color.getHSL({}).l < 0.3)
+  assert.equal(interior.metalness, 0)
+  assert.ok(interior.roughness >= 0.7)
+  assert.ok(rubber.color.getHSL({}).l < 0.2)
+  assert.equal(rubber.metalness, 0)
+  assert.ok(rubber.roughness >= 0.9)
+  assert.ok(rubber.envMapIntensity < 0.5)
+  assert.equal(hub.map, bakedHubMap)
+
+  // Lamp surfaces keep their authored texture detail and only change their physical
+  // finish. Removing these maps turns the reflector and light strip into a flat panel.
+  const frontLens = headlightMesh.material
+  assert.equal(frontLens.isMeshPhysicalMaterial, true)
+  assert.equal(frontLens.name, 'left_front_light')
+  assert.equal(frontLens.map, lightMap)
+  assert.equal(frontLens.emissiveMap, emissiveMap)
+  assert.equal(frontLens.emissive.getHex(), 0)
+  assert.equal(frontLens.emissiveIntensity, 0)
+  assert.ok(frontLens.color.getHSL({}).l > 0.55, 'front lens stays readable without becoming a white plate')
+  assert.ok(frontLens.color.getHSL({}).l > normalizedGlass.color.getHSL({}).l * 1.6,
+    'front lens is far brighter than the windscreen glass')
+  assert.ok(headlightMesh.renderOrder >= 10)
+  assert.equal(headlightMesh.castShadow, false)
+  assert.equal(headlight.emissive.getHex(), 0xffffff, 'the authored lamp material is left untouched')
+
+  const rearLens = rearLightMesh.material
+  assert.equal(rearLens.isMeshPhysicalMaterial, true)
+  assert.equal(rearLens.map, lightMap)
+  assert.equal(rearLens.emissiveMap, emissiveMap)
+  assert.equal(rearLens.emissiveIntensity, 0)
+  const rearHsl = rearLens.color.getHSL({})
+  assert.ok(rearHsl.h > 0.94 || rearHsl.h < 0.04, 'rear lens sits on the red end of the hue wheel')
+  assert.ok(rearHsl.s > 0.5, 'rear lens is a saturated red, not a dark grey')
+  assert.equal(rearLightMesh.material.name, 'left_rear_light')
+
+  const reverseLens = reverseLightMesh.material
+  assert.ok(reverseLens.color.getHSL({}).l > 0.55, 'the reversing lamp keeps a clear lens')
+  assert.ok(reverseLens.color.getHSL({}).s < 0.2)
+
+  // The shared cover material is split per mesh and picked by which end of the car it
+  // sits on, and the role pass must not repaint it back to the old flat dark red.
+  const frontCover = frontCoverMesh.material
+  const rearCover = rearCoverMesh.material
+  assert.equal(frontCover.isMeshPhysicalMaterial, true)
+  assert.equal(frontCover.userData.lampCover, 'front')
+  assert.equal(rearCover.userData.lampCover, 'rear')
+  assert.equal(frontCover.map, null, 'the uniform placeholder map must not darken the front cover')
+  assert.equal(rearCover.map, null, 'the uniform placeholder map must not flatten the rear tint')
+  assert.ok(frontCover.transmission >= 0.75, 'the large front cover must reveal the textured lamp surfaces below')
+  assert.ok(frontCover.roughness <= 0.12)
+  assert.ok(frontCover.envMapIntensity <= 0.5, 'the cover must not become a flat environment reflection')
+  assert.equal(frontCover.emissiveIntensity, 0)
+  assert.ok(rearCover.transmission >= 0.6, 'the rear cover must reveal the textured tail-lamp surfaces below')
+  assert.ok(rearCover.roughness <= 0.12)
+  assert.ok(rearCover.envMapIntensity <= 0.5, 'the rear cover must retain lens depth instead of becoming a flat reflection')
+  assert.equal(rearCover.emissiveIntensity, 0)
+  assert.notEqual(frontCover.color.getHex(), rearCover.color.getHex(),
+    'the front and rear covers are no longer the same material colour')
+  const coverRearHsl = rearCover.color.getHSL({})
+  assert.ok(frontCover.color.getHSL({}).l > coverRearHsl.l * 3,
+    'the front cover remains substantially brighter than the rear red cover')
+  assert.ok(coverRearHsl.s > 0.5, 'the rear cover stays a saturated red')
+  assert.ok(coverRearHsl.h > 0.94 || coverRearHsl.h < 0.04, 'and sits on the red end of the hue wheel')
+  assert.equal(frontCover.color.getHex(), 0xc6d0d8, 'the role pass leaves the designed cover colour alone')
+
+  assert.equal(reflector.emissive.getHex(), 0)
+  assert.equal(reflector.emissiveIntensity, 0)
+  assert.ok(chrome.color.getHSL({}).l < 0.65)
+  assert.ok(chrome.roughness >= 0.28)
+  assert.ok(chrome.envMapIntensity <= 0.55)
+  const strayBodyHsl = strayBodyMaterial.color.getHSL({})
+  assert.ok(strayBodyHsl.l < 0.2 && strayBodyHsl.s < 0.2)
+})
+
+test('灯组持有的是真正渲染的灯罩材质，而不是被替换掉的旧材质', () => {
+  const authored = new THREE.MeshStandardMaterial({
+    name: 'left_front_light',
+    emissive: '#ffffff',
+    emissiveIntensity: 1,
+  })
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(), authored)
+  const root = new THREE.Group()
+  root.add(mesh)
+
+  // The real load order: display pass first, clones second.
+  normalizeDisplayMaterials(root)
+  const groups = cloneMutableMaterials(root)
+
+  assert.equal(groups.lights.headlight.length, 1)
+  assert.equal(mesh.material, groups.lights.headlight[0],
+    'the mesh renders exactly the material the light group writes its emissive to')
+  assert.equal(groups.lights.headlight[0].isMeshPhysicalMaterial, true)
+  assert.equal(authored.emissiveIntensity, 1, 'the authored material is left alone')
+  assert.equal(mesh.material.name, 'left_front_light')
+})
+
+test('门把手随车漆，前进气口保持中性石墨黑', () => {
+  const handle = new THREE.MeshStandardMaterial({ name: 'primary.004', color: '#3cff00' })
+  const handleTexture = new THREE.Texture()
+  const texturedHandles = new THREE.MeshStandardMaterial({
+    name: 'primary.002', color: '#ffffff', map: handleTexture,
+  })
+  const intake = new THREE.MeshStandardMaterial({ name: 'front_black.0', color: '#ffffff' })
+  const byName = new Map([
+    ['primary.004', [handle]],
+    ['primary.002', [texturedHandles]],
+    ['front_black.0', [intake]],
+  ])
+
+  applyPaintLinkedTrim(byName, PAINT_PRESETS.burgundy)
+  assert.equal(handle.color.getHex(), new THREE.Color(PAINT_PRESETS.burgundy.color).getHex(),
+    'the handle takes the exact paint colour')
+  assert.equal(texturedHandles.color.getHex(), new THREE.Color(PAINT_PRESETS.burgundy.color).getHex(),
+    'the authored four-door handle atlas is multiplied by the paint colour')
+  assert.equal(texturedHandles.map, handleTexture, 'recolouring never removes the authored handle atlas')
+  const burgundyIntake = intake.color.clone()
+  assert.notEqual(burgundyIntake.getHex(), 0x000000, 'the intake is graphite, not crushed black')
+  assert.ok(burgundyIntake.getHSL({}).s < 0.08, 'the intake remains neutral instead of inheriting burgundy')
+  assert.ok(burgundyIntake.getHSL({}).l < 0.2, 'and stays dark enough to read as cladding')
+  assert.ok(handle.roughness > PAINT_PRESETS.burgundy.roughness)
+  assert.ok(handle.envMapIntensity < 0.5)
+
+  applyPaintLinkedTrim(byName, PAINT_PRESETS.blue)
+  assert.equal(handle.color.getHex(), new THREE.Color(PAINT_PRESETS.blue.color).getHex(),
+    'the handle follows the next paint as well')
+  assert.equal(intake.color.getHex(), burgundyIntake.getHex(), 'switching paint never re-tints the intake')
+  assert.equal(texturedHandles.color.getHex(), new THREE.Color(PAINT_PRESETS.blue.color).getHex())
+
+  applyPaintLinkedTrim(byName, PAINT_PRESETS.silver)
+  assert.equal(intake.color.getHex(), burgundyIntake.getHex(), 'silver paint also keeps the intake neutral')
+  assert.equal(intake.metalness, 0.08)
+  assert.equal(intake.roughness, 0.58)
+  assert.equal(intake.envMapIntensity, 0.22)
+})
+
+test('夜景空气光束保持克制参数', () => {
+  assert.ok(LIGHT_BEAMS.headlight.opacity <= 0.16)
+  assert.ok(LIGHT_BEAMS.fog.opacity <= 0.1)
+  assert.ok(LIGHT_BEAMS.headlight.radius <= 1.55)
+  assert.ok(LIGHT_BEAMS.fog.radius <= 1.15)
 })
 
 /* ------------------------------------------------- controller wiring ------- */

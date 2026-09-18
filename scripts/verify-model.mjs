@@ -9,6 +9,7 @@
  *
  * Exit code 0 = every required part resolved; 1 = at least one hard failure.
  */
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -24,6 +25,10 @@ import {
   VEHICLE_MODEL_PATH,
   normalizePartName,
 } from '../src/vehicleParts.js'
+import {
+  EXPECTED_MODEL_BASELINE,
+  materialRoleEntries,
+} from '../src/vehicleMaterialManifest.js'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const modelPath = path.resolve(projectRoot, process.argv[2] ?? VEHICLE_MODEL_PATH)
@@ -32,7 +37,7 @@ const failures = []
 const notes = []
 
 /** Read the JSON chunk out of a binary glTF container. */
-function readGlbJson(file) {
+function readGlb(file) {
   let buffer
   try {
     buffer = readFileSync(file)
@@ -47,7 +52,9 @@ function readGlbJson(file) {
     const chunkLength = buffer.readUInt32LE(offset)
     const chunkType = buffer.readUInt32LE(offset + 4)
     const body = buffer.subarray(offset + 8, offset + 8 + chunkLength)
-    if (chunkType === 0x4e4f534a) return JSON.parse(new TextDecoder().decode(body))
+    if (chunkType === 0x4e4f534a) {
+      return { buffer, json: JSON.parse(new TextDecoder().decode(body)) }
+    }
     offset += 8 + chunkLength + ((4 - (chunkLength % 4)) % 4)
   }
   throw new Error(`${file} 缺少 glTF JSON 块`)
@@ -165,14 +172,59 @@ function subtreeBounds(json, index, indexer) {
 }
 
 function main() {
-  const json = readGlbJson(modelPath)
+  const { buffer, json } = readGlb(modelPath)
   const indexer = buildIndex(json)
   const round = (value) => Number(value.toFixed(2))
+  const digest = createHash('sha256').update(buffer).digest('hex').toUpperCase()
 
   console.log(`模型检查：${path.relative(projectRoot, modelPath)}`)
   console.log(
     `结构：${indexer.nodes.length} 节点 / ${(json.meshes ?? []).length} 网格 / ${indexer.materials.length} 材质 / ${(json.animations ?? []).length} 内置动画\n`,
   )
+
+  if (buffer.length !== EXPECTED_MODEL_BASELINE.bytes) {
+    failures.push(`模型字节数 ${buffer.length} 与基线 ${EXPECTED_MODEL_BASELINE.bytes} 不一致`)
+  }
+  if (digest !== EXPECTED_MODEL_BASELINE.sha256) {
+    failures.push(`模型 SHA-256 ${digest} 与已审查基线不一致`)
+  }
+  for (const [key, actual] of Object.entries({
+    nodes: indexer.nodes.length,
+    meshes: (json.meshes ?? []).length,
+    materials: indexer.materials.length,
+  })) {
+    if (actual !== EXPECTED_MODEL_BASELINE[key]) {
+      failures.push(`模型 ${key} 数量 ${actual} 与基线 ${EXPECTED_MODEL_BASELINE[key]} 不一致`)
+    }
+  }
+
+  // --- glTF geometry integrity ---------------------------------------------
+  for (const [meshIndex, mesh] of (json.meshes ?? []).entries()) {
+    if (!mesh.primitives?.length) {
+      failures.push(`网格 #${meshIndex} 缺少图元`)
+      continue
+    }
+    for (const [primitiveIndex, primitive] of mesh.primitives.entries()) {
+      const label = `网格 #${meshIndex} 图元 #${primitiveIndex}`
+      if ((primitive.mode ?? 4) !== 4) failures.push(`${label} 不是三角形图元`)
+      if (!Number.isInteger(primitive.attributes?.POSITION)) failures.push(`${label} 缺少 POSITION`)
+      if (!Number.isInteger(primitive.attributes?.NORMAL)) failures.push(`${label} 缺少 NORMAL`)
+      const accessor = json.accessors?.[primitive.attributes?.POSITION]
+      const bounds = [...(accessor?.min ?? []), ...(accessor?.max ?? [])]
+      if (bounds.length !== 6 || !bounds.every(Number.isFinite)) failures.push(`${label} 包围盒无效`)
+    }
+  }
+
+  // --- complete material-role coverage -------------------------------------
+  const assignments = materialRoleEntries()
+  const assignedNames = assignments.map(([name]) => name)
+  const duplicates = assignedNames.filter((name, index) => assignedNames.indexOf(name) !== index)
+  const modelMaterialNames = indexer.materials.map((material) => material.name)
+  const unclassified = modelMaterialNames.filter((name) => !assignedNames.includes(name))
+  const unknown = assignedNames.filter((name) => !modelMaterialNames.includes(name))
+  if (duplicates.length) failures.push(`材质角色重复：${[...new Set(duplicates)].join('、')}`)
+  if (unclassified.length) failures.push(`材质未分类：${unclassified.join('、')}`)
+  if (unknown.length) failures.push(`材质清单包含模型中不存在的名称：${unknown.join('、')}`)
 
   // --- required nodes -------------------------------------------------------
   const resolvedNodes = new Map()
@@ -194,6 +246,10 @@ function main() {
       ? `✗ 必需节点：${REQUIRED_NODES.length - missingRequiredNodes.length}/${REQUIRED_NODES.length} 已解析`
       : `✓ 必需节点：${REQUIRED_NODES.length}/${REQUIRED_NODES.length} 已解析`,
   )
+
+  for (const [name, nodeIndex] of resolvedNodes) {
+    if (!subtreeBounds(json, nodeIndex, indexer)) failures.push(`必需节点 ${name} 的子树不含几何体`)
+  }
 
   // --- required materials ---------------------------------------------------
   const missingMaterials = REQUIRED_MATERIALS.filter((name) => !indexer.materialByName.has(name))
@@ -249,6 +305,7 @@ function main() {
   const paintUsers = indexer.nodes.filter((node) => node.mesh !== undefined
     && json.meshes[node.mesh].primitives.some((p) => json.materials[p.material]?.name === PAINT_MATERIAL))
   console.log(`ℹ 车漆材质 ${PAINT_MATERIAL}${paintMaterial ? '' : '（缺失）'} 覆盖 ${paintUsers.length} 个车身网格`)
+  console.log(`ℹ 材质角色清单覆盖 ${assignments.length}/${indexer.materials.length} 个材质`)
   console.log(`ℹ 轮毂材质：${RIM_MATERIALS.join('、')}`)
   const lightSummary = Object.entries(LIGHT_MATERIALS)
     .map(([id, names]) => `${id}=${names.length}`)

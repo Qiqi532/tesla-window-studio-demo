@@ -11,7 +11,12 @@ import {
   WINDOW_NODES,
   normalizePartName,
 } from './vehicleParts.js'
-import { cloneMutableMaterials, collectMutableMaterialNames } from './vehicleMaterials.js'
+import {
+  cloneMutableMaterials,
+  collectMutableMaterialNames,
+  indexMaterialsByName,
+  normalizeDisplayMaterials,
+} from './vehicleMaterials.js'
 
 function findPart(root, name) {
   const exact = root.getObjectByName(name)
@@ -73,25 +78,34 @@ export async function loadVehicle(onProgress = () => {}) {
     throw new Error('前后轮轴解析到同一个节点，无法分别滚动')
   }
 
+  vehicle.traverse((node) => {
+    if (!node.isMesh) return
+    node.castShadow = true
+    node.receiveShadow = true
+  })
+
+  /**
+   * Order matters. The display pass installs the lamp lenses and the smoked glazing, so
+   * it has to run *before* the mutable materials are cloned — otherwise the light groups
+   * would hold clones of materials that no mesh renders any more, and switching a lamp on
+   * would change nothing on screen.
+   */
+  normalizeDisplayMaterials(vehicle)
+
   const mutableNames = collectMutableMaterialNames()
   const materials = cloneMutableMaterials(vehicle, mutableNames)
   if (!materials.paint.length) throw new Error(`模型缺少车漆材质：${PAINT_MATERIAL}`)
   const emptyLightGroups = Object.entries(materials.lights).filter(([, list]) => !list.length).map(([id]) => id)
   if (emptyLightGroups.length) throw new Error(`模型缺少灯光材质：${emptyLightGroups.join('、')}`)
 
-  /** Real light meshes, used to anchor the emissive cones onto the body. */
+  // Resolved after cloning, so the index points at the clones the meshes actually render.
+  const materialsByName = indexMaterialsByName(vehicle)
   const lightRig = Object.fromEntries(Object.entries(LIGHT_CONES).map(([id, entry]) => [
     id,
     entry.nodes.map((name) => findPart(vehicle, name)).filter(Boolean),
   ]))
   const missingRig = Object.entries(lightRig).filter(([, nodes]) => !nodes.length).map(([id]) => id)
   if (missingRig.length) throw new Error(`模型缺少灯光锥锚点：${missingRig.join('、')}`)
-
-  vehicle.traverse((node) => {
-    if (!node.isMesh) return
-    node.castShadow = true
-    node.receiveShadow = true
-  })
 
   const bounds = new THREE.Box3().setFromObject(vehicle)
   const size = bounds.getSize(new THREE.Vector3())
@@ -119,6 +133,7 @@ export async function loadVehicle(onProgress = () => {}) {
     axles,
     lightRig,
     materials,
+    materialsByName,
     wheelRadius,
     modelPath: VEHICLE_MODEL_PATH,
   }

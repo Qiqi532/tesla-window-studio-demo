@@ -26,11 +26,20 @@
               <button type="button" data-scene="studio">影棚</button>
               <button type="button" data-scene="road">道路</button>
             </div>
+            <div class="control-cluster" aria-label="季节">
+              <span class="cluster-label">SEASON</span>
+              <button type="button" data-season="spring">春季</button>
+              <button type="button" data-season="summer">夏季</button>
+              <button type="button" data-season="autumn">秋季</button>
+              <button type="button" data-season="winter">冬季</button>
+            </div>
             <div class="control-cluster" aria-label="道路天气">
               <span class="cluster-label">WEATHER</span>
               <button type="button" data-weather="sunny">晴天</button>
               <button type="button" data-weather="cloudy">阴天</button>
               <button type="button" data-weather="rain">雨天</button>
+              <button type="button" data-weather="snow">雪天</button>
+              <button type="button" data-weather="night">夜晚</button>
             </div>
             <div class="control-cluster control-cluster-actions">
               <button type="button" id="orbit-toggle" aria-pressed="false">自动环绕</button>
@@ -52,7 +61,7 @@
         <section class="hero-copy" aria-label="演示介绍">
           <p class="eyebrow"><span class="eyebrow-line"></span> VEHICLE EXPERIENCE</p>
           <h1>以声音与指尖，<br /><em>驱动整车。</em></h1>
-          <p class="hero-description">在影棚与循环道路之间切换，探索晴雨反射。<br />拖动车身、选择镜头，或用声音控制车窗、车门、备箱、灯光与天气。</p>
+          <p class="hero-description">在影棚与循环道路之间切换，探索春夏秋冬与晴雨风雪。<br />拖动车身、选择镜头，或用声音控制车窗、车门、备箱、灯光、季节、天气与行驶。</p>
           <div class="interaction-hint"><span class="hint-icon">↔</span> 拖动旋转 <span class="hint-divider"></span><span class="hint-icon">⊕</span> 滚轮缩放 <span class="hint-divider"></span><span class="hint-icon">◎</span> 点击车窗、车门与备箱</div>
         </section>
 
@@ -109,8 +118,8 @@
         </aside>
 
         <section class="voice-panel" aria-label="语音与文字控车">
-          <div class="voice-heading"><span class="voice-badge">VOICE COMMAND</span><span class="voice-example">车窗 · 车门 · 备箱 · 灯光 · 天气</span></div>
-          <div class="voice-actions"><button class="mic-button" id="mic-button" type="button" aria-label="开始语音控车"><span class="mic-glyph">◉</span><span id="mic-label">点击说话</span></button><form id="command-form" class="command-form"><label for="command-input" class="sr-only">输入控车指令</label><input id="command-input" type="text" placeholder="输入：打开左前车门 / 切换雨天" autocomplete="off" /><button type="submit" aria-label="执行文本指令">→</button></form></div>
+          <div class="voice-heading"><span class="voice-badge">VOICE COMMAND</span><span class="voice-example">部件 · 灯光 · 季节 · 天气 · 外观 · 行驶</span></div>
+          <div class="voice-actions"><button class="mic-button" id="mic-button" type="button" aria-label="开始语音控车"><span class="mic-glyph">◉</span><span id="mic-label">点击说话</span></button><form id="command-form" class="command-form"><label for="command-input" class="sr-only">输入控车指令</label><input id="command-input" type="text" placeholder="输入：换成红色，然后前进到五十" autocomplete="off" /><button type="submit" aria-label="执行文本指令">→</button></form></div>
           <div class="voice-options">
             <label class="voice-mode" for="voice-mode">识别
               <select id="voice-mode" aria-label="语音识别模式">
@@ -125,7 +134,7 @@
             <label class="speech-output"><input id="speech-output-toggle" type="checkbox" /> 中文播报</label>
           </div>
           <p id="feedback" class="feedback" role="status" aria-live="polite">准备就绪，等待你的指令。</p>
-          <p class="voice-privacy">不保存录音或识别历史；浏览器模式可能使用厂商在线服务，本地模式仅在设备上处理。文字输入始终可用，行驶控制请使用按钮。</p>
+          <p class="voice-privacy">可说“打开全部灯光”“换成午夜蓝”“前进到五十”，并用“然后 / 再”连续控制；车辆运动仅为视觉演示，安全互锁始终生效。不保存录音或识别历史。</p>
         </section>
 
         <div class="model-credit">MODEL CREDIT <span>·</span> Ameer Studio <span>·</span> <a href="https://sketchfab.com/3d-models/tesla-2018-model-3-5ef9b845aaf44203b6d04e2c677e444f" target="_blank" rel="noopener noreferrer">Sketchfab 原模型 ↗</a> <span>·</span> <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0 ↗</a> <span>·</span> <a id="local-license" href="#" target="_blank" rel="noopener noreferrer">车模授权 ↗</a> <span>·</span> <a id="environment-license" href="#" target="_blank" rel="noopener noreferrer">环境素材 CC0 ↗</a></div>

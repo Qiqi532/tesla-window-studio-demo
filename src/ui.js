@@ -1,4 +1,5 @@
 import { CAMERA_PRESETS } from './cameraRig.js'
+import { SEASON_LABELS, WEATHER_LABELS } from './environment.js'
 import {
   DOOR_PARTS,
   GEARS,
@@ -43,11 +44,16 @@ export function createEnvironmentUi({ environment, cameraRig, feedback }) {
       feedback(`已切换到${button.dataset.scene === 'studio' ? '影棚' : '循环道路'}场景。`)
     }))
   }
+  for (const button of bySelectorAll('[data-season]')) {
+    listen(button, 'click', () => run(async () => {
+      await environment.setSeason(button.dataset.season)
+      feedback(`已切换到${SEASON_LABELS[button.dataset.season]}道路。`)
+    }))
+  }
   for (const button of bySelectorAll('[data-weather]')) {
     listen(button, 'click', () => run(async () => {
       await environment.setWeather(button.dataset.weather)
-      const labels = { sunny: '晴天', cloudy: '阴天', rain: '雨天' }
-      feedback(`已切换到${labels[button.dataset.weather]}道路。`)
+      feedback(`已切换到${WEATHER_LABELS[button.dataset.weather]}道路。`)
     }))
   }
   for (const button of bySelectorAll('[data-camera]')) {
@@ -64,12 +70,13 @@ export function createEnvironmentUi({ environment, cameraRig, feedback }) {
 
   const unsubscribeEnvironment = environment.subscribe((state) => {
     for (const button of bySelectorAll('[data-scene]')) button.classList.toggle('is-active', button.dataset.scene === state.mode)
+    for (const button of bySelectorAll('[data-season]')) button.classList.toggle('is-active', button.dataset.season === state.season && state.mode === 'road')
     for (const button of bySelectorAll('[data-weather]')) button.classList.toggle('is-active', button.dataset.weather === state.weather && state.mode === 'road')
     status.textContent = state.roadAssetsLoading
       ? '道路资源加载中…'
       : state.mode === 'studio'
         ? '影棚 · 本地反射环境'
-        : `道路 · ${{ sunny: '晴天', cloudy: '阴天', rain: '雨天' }[state.weather]}`
+        : `道路 · ${SEASON_LABELS[state.season] ?? SEASON_LABELS.summer} · ${WEATHER_LABELS[state.weather] ?? WEATHER_LABELS.sunny}`
   })
   const unsubscribeCamera = cameraRig.subscribe((state) => {
     for (const button of bySelectorAll('[data-camera]')) button.classList.toggle('is-active', button.dataset.camera === state.preset)

@@ -6,6 +6,7 @@ import {
   GEAR_DEFAULT_SPEED,
   GEAR_SPEED_LIMITS,
   LIGHT_APPEARANCE,
+  LIGHT_BEAMS,
   LIGHT_CONES,
   LIGHT_IDS,
   LIGHT_LABELS,
@@ -17,6 +18,7 @@ import {
   WHEEL_PRESETS,
   WINDOW_IDS,
 } from './vehicleParts.js'
+import { applyPaintLinkedTrim } from './vehicleMaterials.js'
 
 /**
  * Command types accepted by `VehicleController.dispatch()`. Buttons, model clicks and
@@ -409,6 +411,7 @@ export function createVehicleController({
   coneGroup.name = 'vehicle-light-cones'
   root.add(coneGroup)
   const cones = {}
+  const coneAnchors = {}
   for (const [id, entry] of Object.entries(LIGHT_CONES)) {
     const sources = vehicle.lightRig[id] ?? []
     const positions = []
@@ -421,6 +424,7 @@ export function createVehicleController({
     } else {
       for (const source of sources) positions.push(new THREE.Box3().setFromObject(source).getCenter(new THREE.Vector3()))
     }
+    coneAnchors[id] = positions
     cones[id] = positions.map((worldPosition) => {
       const localPosition = root.worldToLocal(worldPosition.clone())
       const light = new THREE.SpotLight(
@@ -438,6 +442,55 @@ export function createVehicleController({
     })
   }
 
+  /**
+   * Additive shafts that make the beams visible in air. A cone whose vertex colours fade
+   * to black towards the far end reads as a soft falloff under additive blending, so no
+   * custom shader is needed. They are only switched on in the dark scenes.
+   */
+  const beams = {}
+  const beamGeometryCache = new Map()
+  for (const [id, entry] of Object.entries(LIGHT_BEAMS)) {
+    const anchors = coneAnchors[id]
+    if (!anchors?.length) continue
+    const key = `${entry.length}:${entry.radius}`
+    if (!beamGeometryCache.has(key)) {
+      const geometry = new THREE.CylinderGeometry(entry.radius * 0.1, entry.radius, entry.length, 20, 1, true)
+      geometry.translate(0, -entry.length / 2, 0)
+      const position = geometry.attributes.position
+      const colors = new Float32Array(position.count * 3)
+      for (let index = 0; index < position.count; index += 1) {
+        const along = THREE.MathUtils.clamp(-position.getY(index) / entry.length, 0, 1)
+        const value = (1 - along) ** 1.4
+        colors[index * 3] = value
+        colors[index * 3 + 1] = value
+        colors[index * 3 + 2] = value
+      }
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+      beamGeometryCache.set(key, geometry)
+    }
+    const geometry = beamGeometryCache.get(key)
+    const direction = new THREE.Vector3(0, -entry.drop * entry.length, -entry.length).normalize()
+    beams[id] = anchors.map((worldPosition) => {
+      const localPosition = root.worldToLocal(worldPosition.clone())
+      const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+        color: entry.color,
+        vertexColors: true,
+        transparent: true,
+        opacity: entry.opacity,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      }))
+      mesh.position.copy(localPosition)
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), direction)
+      mesh.visible = false
+      mesh.frustumCulled = false
+      coneGroup.add(mesh)
+      return mesh
+    })
+  }
+
   /* --- material presets (all targets are per-mesh clones) --- */
   const applyPaint = () => {
     const preset = PAINT_PRESETS[state.getState().paint]
@@ -446,6 +499,9 @@ export function createVehicleController({
       material.metalness = preset.metalness
       material.roughness = preset.roughness
     }
+    // Handles follow the body colour; lower trim is refreshed to its neutral graphite
+    // finish here so every paint preset keeps the same exterior-material contract.
+    applyPaintLinkedTrim(vehicle.materialsByName, preset)
   }
   const applyWheelStyle = () => {
     const preset = WHEEL_PRESETS[state.getState().wheelStyle]
@@ -465,6 +521,7 @@ export function createVehicleController({
   const applied = Object.fromEntries(LIGHT_IDS.map((id) => [id, -1]))
   let wheelAngle = 0
   let lastSignature = ''
+  let darkScene = false
 
   const applyIllumination = (illumination, delta) => {
     for (const id of LIGHT_IDS) {
@@ -482,6 +539,34 @@ export function createVehicleController({
     for (const [id, group] of Object.entries(cones)) {
       const visible = (illumination[id] ?? 0) > 0.35
       for (const light of group) light.visible = visible
+    }
+    for (const [id, group] of Object.entries(beams)) {
+      // A shaft through the air only reads in the dark; in daylight it looks like fog.
+      const visible = darkScene && (illumination[id] ?? 0) > 0.35
+      for (const mesh of group) mesh.visible = visible
+    }
+    applyLampCovers()
+  }
+
+  /**
+   * The big translucent covers over the lamp clusters carry most of the lamp's visible
+   * area, so they glow along with the emitter inside. The rear cover follows whichever of
+   * tail / brake is currently brighter, which keeps the brake flash readable.
+   */
+  const applyLampCovers = () => {
+    const covers = vehicle.materials.lampCovers
+    if (!covers) return
+    const headlight = LIGHT_APPEARANCE.headlight
+    for (const material of covers.front) {
+      material.emissive.set(headlight.color)
+      material.emissiveIntensity = headlight.intensity * glow.headlight * 0.18
+    }
+    const braking = glow.brake > glow.tail
+    const rear = braking ? LIGHT_APPEARANCE.brake : LIGHT_APPEARANCE.tail
+    const rearGlow = Math.max(glow.tail, glow.brake)
+    for (const material of covers.rear) {
+      material.emissive.set(rear.color)
+      material.emissiveIntensity = rear.intensity * rearGlow * 0.18
     }
   }
 
@@ -530,6 +615,31 @@ export function createVehicleController({
     /** Resolve a screen position to the single part a real click would toggle. */
     pickAt(clientX, clientY) {
       return resolvePick(clientX, clientY)
+    },
+
+    /**
+     * Tell the controller whether the scene is dark enough for in-air light shafts.
+     * The environment owns the lighting, so it is the one that decides; the controller
+     * only reacts. Called every frame, so the guard keeps it free.
+     */
+    setDarkScene(enabled) {
+      const next = Boolean(enabled)
+      if (next === darkScene) return
+      darkScene = next
+      // Force the next illumination pass to re-evaluate beam visibility.
+      for (const id of LIGHT_IDS) applied[id] = -1
+    },
+
+    /**
+     * Lamp effects actually rendered right now: how many spot lights and in-air shafts
+     * are switched on per light group. Exposed for the browser verification pass, which
+     * cannot see the scene graph otherwise.
+     */
+    getLightEffectInfo() {
+      const count = (groups) => Object.fromEntries(
+        Object.entries(groups).map(([id, group]) => [id, group.filter((entry) => entry.visible).length]),
+      )
+      return { spots: count(cones), beams: count(beams), darkScene }
     },
 
     /**

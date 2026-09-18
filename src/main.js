@@ -9,6 +9,7 @@ import { createCommandDispatcher } from './commandDispatcher.js'
 import { createCameraRig } from './cameraRig.js'
 import { createEnvironmentController } from './environment.js'
 import { createEnvironmentUi, createVehicleUi } from './ui.js'
+import { PAINT_LINKED_TRIM } from './vehicleParts.js'
 
 const byId = (id) => document.getElementById(id)
 const feedbackElement = byId('feedback')
@@ -41,7 +42,10 @@ let voiceControl = null
 studio.setFrameHandler((delta) => {
   cameraRig.update(delta)
   environment.update(delta)
+  // Bloom only pays for itself in the dark scenes; the day scenes keep the direct path.
+  studio.setBloom(environment.isDarkScene())
   if (!vehicleController) return
+  vehicleController.setDarkScene(environment.isDarkScene())
   vehicleController.update(delta)
   // The looped road and both axles share one visual speed.
   environment.setRoadSpeed(vehicleController.getState().roadSpeed)
@@ -93,6 +97,25 @@ function installAuditHook(vehicle, controller) {
         roadOffsets: environment.getRenderInfo().roadOffsets,
       },
       windows: state.windows,
+      lightEffects: controller.getLightEffectInfo(),
+      lampCovers: {
+        frontCount: vehicle.materials.lampCovers?.front?.length ?? 0,
+        rearCount: vehicle.materials.lampCovers?.rear?.length ?? 0,
+        frontEmissive: round(vehicle.materials.lampCovers?.front?.[0]?.emissiveIntensity ?? 0),
+        rearEmissive: round(vehicle.materials.lampCovers?.rear?.[0]?.emissiveIntensity ?? 0),
+        frontTransmission: round(vehicle.materials.lampCovers?.front?.[0]?.transmission ?? 0),
+        frontRoughness: round(vehicle.materials.lampCovers?.front?.[0]?.roughness ?? 0),
+        frontColor: vehicle.materials.lampCovers?.front?.[0] ? `#${vehicle.materials.lampCovers.front[0].color.getHexString()}` : null,
+        rearColor: vehicle.materials.lampCovers?.rear?.[0] ? `#${vehicle.materials.lampCovers.rear[0].color.getHexString()}` : null,
+      },
+      // Exterior trim audit: handles follow paint, while the intake and lower cladding
+      // stay at the neutral graphite profile.
+      trim: Object.fromEntries([
+        ...Object.values(PAINT_LINKED_TRIM).flat(),
+      ].map((name) => [
+        name,
+        vehicle.materialsByName.get(name)?.[0] ? `#${vehicle.materialsByName.get(name)[0].color.getHexString()}` : null,
+      ])),
       doors: Object.fromEntries(Object.entries(vehicle.doors).map(([id, part]) => [id, round(part.node.rotation[part.axis])])),
       trunks: Object.fromEntries(Object.entries(vehicle.trunks).map(([id, part]) => [id, round(part.node.rotation[part.axis])])),
       wheels: Object.fromEntries(Object.entries(vehicle.axles).map(([id, axle]) => [id, round(axle.node.rotation.x)])),
@@ -121,9 +144,33 @@ function installAuditHook(vehicle, controller) {
     windowPoints: Object.fromEntries(Object.entries(vehicle.windows).map(([id, node]) => [id, project(node)])),
   })
 
+  // Where each lamp lands on screen, so the rendering pass can zoom into the real lamp
+  // instead of guessing pixel regions from a full-frame screenshot.
+  globalThis.__vehicleLightPoints = () => Object.fromEntries(
+    Object.entries(vehicle.lightRig).map(([id, nodes]) => [id, nodes.map((node) => project(node))]),
+  )
+
   // Lets the browser pass confirm that a screen position really resolves to the part it
   // is about to click, instead of assuming the projected bounding-box centre is free.
   globalThis.__vehiclePickAt = (clientX, clientY) => controller.pickAt(clientX, clientY)
+
+  // Material inspection for the rendering pass: list the authored material names and
+  // repaint one of them in place, so a screenshot can prove which mesh a name owns.
+  globalThis.__vehicleMaterialNames = () => [...vehicle.materialsByName.keys()].filter(Boolean).sort()
+  globalThis.__vehicleHighlight = (name, hex) => {
+    const materials = vehicle.materialsByName.get(name) ?? []
+    for (const material of materials) {
+      if (!material?.color) continue
+      material.color.set(hex)
+      if ('emissive' in material) {
+        material.emissive.set(hex)
+        material.emissiveIntensity = Math.max(material.emissiveIntensity, 0.35)
+      }
+      material.map = null
+      material.needsUpdate = true
+    }
+    return materials.length
+  }
 }
 
 async function start() {

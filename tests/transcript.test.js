@@ -6,6 +6,10 @@ test('转写规范化只修正常见语气词、标点和已知同音词', () =>
   assert.equal(normalizeTranscript('请帮我，打开前被箱。'), '打开前备箱')
   assert.equal(normalizeTranscript('麻烦关闭后备厢！'), '关闭后备箱')
   assert.equal(normalizeTranscript('打开雾等'), '打开雾灯')
+  assert.equal(normalizeTranscript('挂 D 挡'), '挂D档')
+  assert.equal(normalizeTranscript('把车其换成红色'), '把车漆换成红色')
+  assert.equal(normalizeTranscript('换成碳黑轮谷'), '换成碳黑轮毂')
+  assert.equal(normalizeTranscript('速度调到 50 公里'), '速度调到50公里')
 })
 
 test('多个候选映射到同一命令时只选择最高置信度文本', () => {
@@ -30,6 +34,16 @@ test('候选映射到不同命令时返回歧义而不猜测', () => {
 
   assert.equal(result.error, 'ambiguous-transcript')
   assert.deepEqual(result.alternatives, ['打开左前车门', '打开右前车门'])
+})
+
+test('长句候选的后续命令或附带速度不同时返回歧义', () => {
+  const result = selectTranscriptCandidate([
+    { text: '打开大灯，然后前进到五十', confidence: 0.9 },
+    { text: '打开大灯，然后前进到三十', confidence: 0.86 },
+  ])
+
+  assert.equal(result.error, 'ambiguous-transcript')
+  assert.deepEqual(result.alternatives, ['打开大灯然后前进到五十', '打开大灯然后前进到三十'])
 })
 
 test('低置信度候选和重复最终结果不会触发命令', () => {

@@ -119,6 +119,38 @@ test('同一会话按最终文本去重，新会话可以再次执行', async ()
   }
 })
 
+test('语音长句保留时序连接词并作为一次指令交给分发器', async () => {
+  const oldWindow = globalThis.window
+  const browser = createRecognitionWindow()
+  globalThis.window = browser.window
+  try {
+    const nodes = fixture()
+    const commands = []
+    const messages = []
+    const control = createVoiceControl({
+      ...nodes,
+      mediaDevices: allowedMediaDevices,
+      execute: async (text) => {
+        commands.push(text)
+        return '已完成两项操作。'
+      },
+      feedback: (message) => messages.push(message),
+    })
+    const result = { isFinal: true, 0: { transcript: '打开左前车门，然后打开大灯' } }
+    nodes.button.dispatchEvent(new Event('click'))
+    await nextTask()
+    browser.RecognitionStub.instance.onresult({ resultIndex: 0, results: [result] })
+    browser.RecognitionStub.instance.onend()
+    await nextTask()
+
+    assert.deepEqual(commands, ['打开左前车门然后打开大灯'])
+    assert.equal(messages.at(-1), '已完成两项操作。')
+    control.dispose()
+  } finally {
+    globalThis.window = oldWindow
+  }
+})
+
 test('点击说话先获得麦克风权限并释放预检音轨', async () => {
   const oldWindow = globalThis.window
   const browser = createRecognitionWindow()

@@ -11,7 +11,9 @@ async function prepare(id, config) {
     env.allowLocalModels = false
     env.allowRemoteModels = true
     env.remoteHost = config.modelBaseUrl
-    env.remotePathTemplate = '{model}/{revision}/{file}'
+    // The library appends the file name after this template, so it must end with a
+    // slash and must not contain a {file} placeholder.
+    env.remotePathTemplate = '{model}/{revision}/'
     env.useBrowserCache = true
     env.backends.onnx.wasm.wasmPaths = config.wasmBaseUrl
     env.backends.onnx.wasm.numThreads = 1

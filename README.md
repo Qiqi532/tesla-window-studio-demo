@@ -1,66 +1,142 @@
-# Tesla 3D 场景与车辆控制 Demo
+# Tesla Window Studio
 
-实习作业：使用 Vite、原生 JavaScript 和 Three.js 展示 Tesla 2018 Model 3。Demo 提供影棚/循环道路双场景、晴天/阴天/雨天、六个摄影机预设和自动环绕，并保留点击、中文语音或文字指令控制四扇侧窗。车辆控制面板统一控制四门、前后备箱、可见灯组、P/D/R 档位与视觉速度、五种车漆和三种轮毂预设。作业原始要求保存在 `task_image.png`。
+一个基于 Vite、原生 JavaScript 和 Three.js 的 Tesla Model 3 交互式 3D 展示 Demo。
 
-## 本地运行
+[![Deploy to GitHub Pages](https://github.com/Qiqi532/tesla-window-studio-demo/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/Qiqi532/tesla-window-studio-demo/actions/workflows/deploy.yml)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-1f6feb)](https://qiqi532.github.io/tesla-window-studio-demo/)
 
-```powershell
-npm ci
-npm run dev
-```
+项目重点不是静态展示车模，而是把点击、按钮、中文语音和文字输入统一到同一套车辆控制状态机中：用户可以切换影棚/循环道路、四季与五种天气，控制车窗、车门、前后备箱、灯光、档位、速度、车漆和轮毂，并观察这些状态如何联动到 Three.js 场景。
 
-打开终端显示的本地地址。顶部可切换影棚、道路和天气；六个镜头使用约 600 ms 平滑过渡，拖动画布会立即中断过渡。
+![Tesla Window Studio 成品界面](docs/images/studio-hero.png)
 
-道路 HDR 和路面纹理在第一次进入道路时才加载，之后在内存中复用。雨粒子只分布在摄影机附近，连续低于 45 FPS 时会逐档降低粒子数和渲染像素比。
+## 亮点
 
-拖动旋转、滚轮缩放；点击侧窗或右侧按钮控制单窗。中文语音与文字指令统一支持车窗、车门、前后备箱、大灯/雾灯/尾灯和天气，例如“关闭驾驶位车窗”“打开左前车门”“开启大灯”“切换雨天”。未指定位置的“打开车门”和“打开备箱”会要求补充位置；天气指令会自动进入道路场景。档位和速度仍只使用页面按钮。
+### 场景与渲染
 
-文字输入始终可用。语音支持“自动 / 浏览器 / 本地”三种模式：自动模式优先探测浏览器本机中文语言包，其次使用浏览器语音服务；服务不可用时可由用户确认后按需加载浏览器端 Whisper tiny。识别候选会按标准命令去重，不同候选映射到不同操作时不会猜测执行。可选中文播报默认关闭，开启状态仅保存在浏览器本地；页面不保存录音、转写或识别历史。
+- 影棚与循环道路双场景。
+- 春、夏、秋、冬四季与晴天、阴天、雨天、雪天、夜晚组成 4 × 5 环境矩阵。
+- 六个摄影机预设、平滑镜头过渡和低速自动环绕。
+- 道路 HDR、路面纹理和天气粒子按需加载并复用。
+- 夜晚启用受控泛光、灯光投射和车身附着光束；低帧率时自动降低粒子和渲染像素比。
 
-## 车辆控制
+### 车辆控制
 
-按钮、车身点击和语音都走同一个 `VehicleController.dispatch()` 入口：
+- 四扇侧窗独立开合，动画中反向操作不会跳变。
+- 四门、前备箱、后备箱支持点击和按钮控制，并带行驶互锁。
+- 前大灯、雾灯、尾灯支持手动控制；刹车灯和倒车灯随档位/速度自动变化。
+- P / D / R 档位、速度上限、换向限制、道路循环和车轮滚动共享同一状态源。
+- 五种车漆和三种轮毂预设按网格克隆材质，避免污染共享材质。
 
-- **车窗**：四扇侧窗独立开合，动画中反向操作不会跳变。
-- **车门与备箱**：四门绕本地 Z 轴（左前 −1.08、左后 −1.02、右前 +1.08、右后 +1.02 弧度），前备箱绕本地 X 轴 +0.58、后备箱 −0.82 弧度；可直接点击车身对应区域开合。
-- **灯光**：只保留模型中可清楚辨认的前大灯、雾灯和尾灯手动开关；刹车灯与倒车灯由档位和车速自动控制，不接受手动开关。大灯与雾灯同时点亮克隆材质的自发光和附着在车身上的灯锥。
-- **档位与速度**：`P/D/R`；D 档视觉速度 0–80 km/h（默认 30），R 档上限 15 km/h，P 档速度归零。任一车门或备箱未关闭时拒绝进入 D/R，并显示原因；D 档行驶中车门与备箱锁定，车窗和灯光保持可用；D 与 R 之间切换需要先停车。
-- **道路联动**：道路纹理、循环标线和前后轮轴共用同一个视觉速度；挂 R 档时轮轴与道路一起反向，停车后全部停止。
-- **外观**：五种车漆与三种轮毂预设。车漆与轮毂材质按网格克隆，切换外观不会污染共享材质上的镀铬饰件、玻璃或内饰。
+### 中文语音与文字控制
 
-模型只提供前后轮轴整体滚动。本项目没有实现左右轮独立转向、悬挂、充电口或雨刷动画，也不会为它们虚构节点；`npm run verify:model` 会在构建前校验这一点。
+支持“自动 / 浏览器 / 本地”三种识别模式：
 
-## 验证与静态部署
+1. 优先探测浏览器本机中文语言包。
+2. 回退到浏览器语音服务。
+3. 用户确认后按需加载浏览器端 Whisper tiny q8 Worker。
 
-```powershell
-npm test
-npm run verify:model
-npm run build
-npm run verify:deploy
-npm run preview
-```
+文字输入始终可用。复合指令支持逗号、“然后”和“再”串联，例如：
 
-`npm run build` 会通过 `prebuild` 自动先执行模型检查。模型检查直接读取 GLB，校验车辆控制器所需的全部节点与材质，并在前后轮轴的 z 轴位置不符合预期时失败。
+    关闭所有车门，然后前进到五十，再打开全部灯光
+    换成午夜蓝，选择碳黑轮毂
+    关闭雾灯和尾灯
+    切到秋天，再切到雪天
 
-`npm run verify:deploy` 会检查 `dist` 中每个文件是否满足 Cloudflare Pages 的 25 MiB 单文件限制。Vite 使用相对 `base`，GLB、授权说明、Transformers.js Worker 和 ONNX Runtime WASM 均随 Pages 静态产物发布。
+解析器会保留执行顺序，普通子句失败不会阻止其余有效操作；涉及安全互锁或歧义时不会猜测执行。
 
-当前推荐使用 Cloudflare Pages Direct Upload，不依赖 GitHub：
+## 快速开始
 
-```powershell
-$env:VITE_ASR_MODEL_BASE_URL = 'https://models.example.com/asr/'
-npm run build
-npm run verify:deploy
-npx wrangler@4 pages deploy dist --project-name <项目名>
-```
+环境要求：Node.js 24、npm。
 
-本地 Whisper q8 权重约 45.5 MB，其中解码器超过 Pages 单文件限制，因此使用 R2 自定义域名托管。正式下载前必须确认 `docs/assets/whisper-tiny-q8-download-manifest.md`；当前仓库不会自动下载模型。R2 CORS 示例位于 `cloudflare/r2-cors.example.json`，示例域名必须替换后才可应用。部署站点需使用 HTTPS，浏览器原生语音仍受浏览器和识别服务可用性影响；文字输入始终可用。
+    npm ci
+    npm run dev
 
-## 模型授权
+打开终端输出的本地地址即可使用。无需后端服务；模型、HDR、纹理和授权说明都从 public/ 静态路径加载。
 
-Tesla 2018 Model 3 车模由 [Ameer Studio](https://sketchfab.com/uchiha.321abc) 创作，来源为 [Sketchfab 原模型](https://sketchfab.com/3d-models/tesla-2018-model-3-5ef9b845aaf44203b6d04e2c677e444f)，采用 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 许可。原项目提供的授权说明保存在 `public/assets/TESLA-LICENSE.md`，页面一角也持续显示署名。本 Demo 没有将车模重新授权为 MIT。
+### 本地 Whisper（可选）
 
-Sunny Country Road、Fouriesburg Mountain Cloudy 和 Clean Asphalt 来自 [Poly Haven](https://polyhaven.com/)，采用 CC0。精确下载文件、字节数与校验值记录在 `public/assets/licenses/ASSET-LICENSES.md`。车辆模型、HDR 和纹理从 Pages 静态路径加载；可选的 Whisper tiny 模型采用 Apache-2.0，并仅从项目配置的 R2 静态域名按需加载。
+本地识别需要一个可访问的静态模型前缀。请在本地 .env.local 中设置，不要提交真实配置：
 
-## 录屏建议
+    $env:VITE_ASR_MODEL_BASE_URL = 'https://<你的模型域名>/asr/'
+    npm run dev
 
-使用最新版 Edge，建议录制 1366×768 或更高分辨率。按“页面加载与授权角标 → 拖动旋转和缩放 → 点击驾驶位车窗往返 → 点击车门与前后备箱 → 打开大灯、雾灯与尾灯 → 挂 D 档观察道路与轮轴联动 → 减速看刹车灯、挂 R 档看倒车灯 → 未关车门时尝试挂档被拒 → 切换车漆与轮毂 → 口令打开/关闭全部车窗 → 禁用语音后输入同样指令”的顺序展示；保留运行命令、测试结果及开发过程中的中间版本作为 Vibe Coding 过程证据。
+模型下载清单、文件校验值和 R2 部署注意事项见 [Whisper 模型清单](docs/assets/whisper-tiny-q8-download-manifest.md)。没有该配置时，文字输入和浏览器语音仍可使用。
+
+## 验证
+
+    npm test
+    npm run verify:gltf
+    npm run verify:model
+    npm run build
+    npm run verify:deploy
+    npm run preview
+
+当前本地验证结果：
+
+- 73 个 Node 测试全部通过。
+- GLB 模型检查：301 节点、176 网格、58 材质；控制器必需节点 16/16、材质 14/14。
+- 静态部署检查通过，所有产物均低于 Cloudflare Pages 的 25 MiB 单文件限制。
+
+npm run build 会通过 prebuild 自动执行 GLB 和模型节点校验。dist/ 是可再生成目录，不进入版本控制。
+
+## 架构概览
+
+    按钮 / 车身点击 / 中文语音 / 文字输入
+                        ↓
+                 parseCommand(text)
+                        ↓
+              CommandDispatcher.execute()
+                 ↙                ↘
+     VehicleController.dispatch()  EnvironmentController
+                 ↓                ↓
+           车模节点与材质       Three.js 场景、天气、道路
+
+主要模块：
+
+| 模块 | 职责 |
+| --- | --- |
+| src/scene.js | 渲染器、灯光、后处理和帧循环 |
+| src/environment.js | 影棚/道路、季节、天气、HDR 和道路对象 |
+| src/vehicle.js | GLB 加载、部件解析和材质初始化 |
+| src/vehicleController.js | 车辆状态机、互锁、灯光、档位、速度和外观 |
+| src/parseCommand.js | 中文命令解析、同义词、并列目标和歧义保护 |
+| src/commandDispatcher.js | 将标准命令分发到车辆或环境控制器 |
+| src/voice.js / src/speech/ | 语音引擎选择、录音、Worker、转写和播报 |
+| scripts/verify-model.mjs | 构建前校验模型节点、材质和轮轴位置 |
+| scripts/verify-static-deploy.mjs | 校验静态部署文件大小限制 |
+
+## 部署
+
+推送到 main 后，.github/workflows/deploy.yml 会执行安装、测试、构建，并将 dist/ 发布到 GitHub Pages。
+
+也可以手动使用 Cloudflare Pages Direct Upload：
+
+    $env:VITE_ASR_MODEL_BASE_URL = 'https://<你的模型域名>/asr/'
+    npm run build
+    npm run verify:deploy
+    npx wrangler@4 pages deploy dist --project-name <项目名>
+
+正式部署时请确认 HTTPS、模型静态域名和 R2 CORS；不要把令牌、密钥或 .env.local 提交到 Git。
+
+## 资产与许可证
+
+- Tesla 2018 Model 3 车模来自 Ameer Studio / Sketchfab，遵循 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。署名和完整说明见 [Tesla 车模许可证](public/assets/TESLA-LICENSE.md)。
+- HDR、道路纹理等环境素材来自 [Poly Haven](https://polyhaven.com/)，遵循 CC0；来源、文件大小和校验值见 [环境资产清单](public/assets/licenses/ASSET-LICENSES.md)。
+- 浏览器端 Whisper tiny q8 使用 Apache-2.0 模型文件，部署清单见 [Whisper 模型清单](docs/assets/whisper-tiny-q8-download-manifest.md)。
+- 本仓库没有把 Tesla 车模重新授权为 MIT；网页源码的授权范围以仓库维护者后续声明为准。
+
+## 项目文档
+
+- [开发记录与命令](docs/DEVELOPMENT-LOG.md)：按阶段整理的开发记录、命令和验证结果。
+- [项目总览](docs/PROJECT-OVERVIEW.md)：架构、功能和阶段盘点。
+- [文档索引](docs/README.md)：文档分类与维护规则。
+- [文件清理审计](docs/PROJECT-CLEANUP-AUDIT.md)：本地文件清理、保留项和安全快照记录。
+- [设计与实现计划](docs/superpowers/)：设计规格与实现计划。
+
+## 已知边界
+
+模型只提供前后轮轴整体滚动，因此本项目没有虚构左右轮独立转向、悬挂、充电口或雨刷动画。转向灯、双闪和车内灯也不作为可见手动控制项；文字输入始终是语音不可用时的正式降级路径。
+
+## 开发记录
+
+本项目按研究、基线、场景天气、车辆控制、中文语音和渲染收尾逐阶段完成。为减少提交噪声，当前工作区会在验证通过后合并为一次清晰的发布提交；完整提交历史和命令记录见 [开发记录与命令](docs/DEVELOPMENT-LOG.md)。
