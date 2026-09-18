@@ -14,7 +14,7 @@
 | 远端 | `git@github.com:Qiqi532/tesla-window-studio-demo.git`（SSH 可用） |
 | 版本 | `1.0.0`，private |
 | 技术栈 | Vite 8.3.0、原生 JavaScript（无框架）、Three.js 0.186.0、Node.js 24 |
-| 部署形态 | 纯静态；GitHub Pages 工作流已就绪，Cloudflare Pages Direct Upload 为推荐方案 |
+| 部署形态 | 纯静态；Cloudflare Pages 为当前线上部署，GitHub 仅保存源代码与开发记录 |
 | 源码规模 | src 3,626 行 / tests 1,201 行 / scripts 313 行，合计 5,140 行 |
 | 车模资产 | `public/assets/tesla-model-3-2018.glb`，22,671,680 字节（21.6 MiB），301 节点 / 176 网格 / 58 材质 / 0 内置动画 |
 

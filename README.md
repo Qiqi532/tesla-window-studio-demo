@@ -2,10 +2,11 @@
 
 一个基于 Vite、原生 JavaScript 和 Three.js 的 Tesla Model 3 交互式 3D 展示 Demo。
 
-[![Deploy to GitHub Pages](https://github.com/Qiqi532/tesla-window-studio-demo/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/Qiqi532/tesla-window-studio-demo/actions/workflows/deploy.yml)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-1f6feb)](https://qiqi532.github.io/tesla-window-studio-demo/)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Cloudflare%20Pages-f38020)](https://tesla-window-studio-demo.pages.dev/)
 
 项目重点不是静态展示车模，而是把点击、按钮、中文语音和文字输入统一到同一套车辆控制状态机中：用户可以切换影棚/循环道路、四季与五种天气，控制车窗、车门、前后备箱、灯光、档位、速度、车漆和轮毂，并观察这些状态如何联动到 Three.js 场景。
+
+线上演示：[tesla-window-studio-demo.pages.dev](https://tesla-window-studio-demo.pages.dev/)。GitHub 仓库仅用于代码、测试、资产许可和开发记录，当前不使用 GitHub Pages 部署。
 
 ![Tesla Window Studio 成品界面](docs/images/studio-hero.png)
 
@@ -107,7 +108,11 @@ npm run build 会通过 prebuild 自动执行 GLB 和模型节点校验。dist/ 
 
 ## 部署
 
-推送到 main 后，.github/workflows/deploy.yml 会执行安装、测试、构建，并将 dist/ 发布到 GitHub Pages。
+当前线上站点由 Cloudflare Pages 提供：
+
+- 在线地址：[tesla-window-studio-demo.pages.dev](https://tesla-window-studio-demo.pages.dev/)
+- GitHub 不再自动部署 Pages；推送到 main 只同步源代码和开发记录。
+- 需要发布新版本时，在本地构建并执行 Cloudflare Pages Direct Upload。
 
 也可以手动使用 Cloudflare Pages Direct Upload：
 

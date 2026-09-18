@@ -14,7 +14,7 @@
 
 - `39e2153 docs: archive initial project research`
 - `6f9b404 feat: establish Tesla window demo baseline`
-- 完成 Vite + Three.js 基线、Tesla GLB 加载、四侧窗交互、中文车窗指令、测试和 GitHub Pages 工作流。
+- 完成 Vite + Three.js 基线、Tesla GLB 加载、四侧窗交互、中文车窗指令和测试；当时曾配置 GitHub Pages 工作流，后续改为 Cloudflare Pages。
 
 ### 2026-09-16：场景、天气与摄影机
 
@@ -106,6 +106,8 @@ npm run verify:deploy
 ```powershell
 npx wrangler@4 pages deploy dist --project-name <项目名>
 ```
+
+当前线上演示地址：<https://tesla-window-studio-demo.pages.dev/>。GitHub 仅作为源代码仓库，不再运行 GitHub Pages 工作流。
 
 执行前必须确认账户、项目名、构建时模型地址及部署授权。
 
